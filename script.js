@@ -466,9 +466,9 @@ function quickCard(title, copy, icon, action) {
 }
 
 const advancedToolImages = {
-  dataDiscovery: "file:///C:/Users/heidy/Downloads/FM-New/Image%20%26%20Icons/Home%20page/Data%20Discovery%20-%20SaaS%20Illustration.png",
-  integrationFlows: "file:///C:/Users/heidy/Downloads/FM-New/Image%20%26%20Icons/Home%20page/Integration%20Flows%20-%20SaaS%20Illustration.png",
-  automationDesigner: "file:///C:/Users/heidy/Downloads/FM-New/Image%20%26%20Icons/Home%20page/Automation%20Designer%20-%20SaaS%20Illustration.png"
+  dataDiscovery: "./assets/home/data-discovery.png",
+  integrationFlows: "./assets/home/integration-flows.png",
+  automationDesigner: "./assets/home/automation-designer.png"
 };
 
 function advancedCard(title, subtitle, copy, imageSrc) {
