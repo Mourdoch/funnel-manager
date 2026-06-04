@@ -431,9 +431,9 @@ function renderHome() {
     <section class="v-sheet">
       <div class="sheet-title">${t("advancedTools")}</div>
       <div class="advanced-grid">
-        ${advancedCard(t("dataReport"), t("poweredByKibana"), t("eventReportsCopy"), "database_search")}
-        ${advancedCard(t("flowIntegration"), t("platformPartners"), t("flowCopy"), "account_tree")}
-        ${advancedCard(t("automationDesigner"), t("dataManagement"), t("automationCopy"), "settings_applications")}
+        ${advancedCard(t("dataReport"), t("poweredByKibana"), t("eventReportsCopy"), advancedToolImages.dataDiscovery)}
+        ${advancedCard(t("flowIntegration"), t("platformPartners"), t("flowCopy"), advancedToolImages.integrationFlows)}
+        ${advancedCard(t("automationDesigner"), t("dataManagement"), t("automationCopy"), advancedToolImages.automationDesigner)}
       </div>
     </section>
   `;
@@ -465,13 +465,23 @@ function quickCard(title, copy, icon, action) {
   `;
 }
 
-function advancedCard(title, subtitle, copy, icon) {
+const advancedToolImages = {
+  dataDiscovery: "file:///C:/Users/heidy/Downloads/FM-New/Image%20%26%20Icons/Home%20page/Data%20Discovery%20-%20SaaS%20Illustration.png",
+  integrationFlows: "file:///C:/Users/heidy/Downloads/FM-New/Image%20%26%20Icons/Home%20page/Integration%20Flows%20-%20SaaS%20Illustration.png",
+  automationDesigner: "file:///C:/Users/heidy/Downloads/FM-New/Image%20%26%20Icons/Home%20page/Automation%20Designer%20-%20SaaS%20Illustration.png"
+};
+
+function advancedCard(title, subtitle, copy, imageSrc) {
   return `
     <article class="v-card advanced-card hover">
-      <div class="illustration">${iconify(icon)}</div>
-      <h3>${title}</h3>
-      <p class="muted card-subtitle">${subtitle}</p>
-      <p class="card-copy" style="margin-top:24px;color:#343941">${copy}</p>
+      <div class="advanced-media">
+        <img src="${imageSrc}" alt="${title}" loading="lazy">
+      </div>
+      <div class="advanced-content">
+        <div class="advanced-card-title">${title}</div>
+        <p class="advanced-card-subtitle">${subtitle}</p>
+        <p class="advanced-card-copy">${copy}</p>
+      </div>
     </article>
   `;
 }
@@ -665,7 +675,7 @@ function profileSidePanel() {
   return `
     <aside class="side-panel">
       <h3>${t("filters")}</h3>
-      ${menuField({ key: "category", label: t("category"), placeholder: t("selectCategory"), options: ["customer", "visitor"], menu: "down", extraClass: "first" })}
+      ${profileCategoryChips()}
       ${menuField({ key: "source", label: t("source"), placeholder: t("selectSource"), options: sourceOptions, menu: "up" })}
       ${menuField({ key: "last_seen", label: t("profileActivity"), placeholder: t("selectRange"), options: ["last 7 days", "last 30 days", "last 365 days"], menu: "up" })}
       ${menuField({ key: "creation_date", label: t("creationDate"), placeholder: t("selectRange"), options: ["last 7 days", "last 30 days", "last 365 days"], menu: "up" })}
@@ -676,6 +686,29 @@ function profileSidePanel() {
       </div>
       <button class="button" data-action="apply-age-filter" style="width:100%;justify-content:center">${icon("search")} ${t("search")}</button>
     </aside>
+  `;
+}
+
+function profileCategoryChips() {
+  const options = ["customer", "visitor"];
+  const activeCategories = state.profileFilters
+    .filter((filter) => filter.startsWith("category = "))
+    .map((filter) => filter.replace("category = ", ""));
+  return `
+    <div class="field-block menu-field-block first">
+      <label>${t("category")}</label>
+      <div class="chip-filter-group" role="group" aria-label="${t("category")}">
+        ${options.map((option) => {
+          const selected = activeCategories.includes(option);
+          return `
+            <button type="button" class="filter-chip ${selected ? "selected" : ""}" data-category-filter="${option}" aria-pressed="${selected}">
+              ${icon(selected ? "check" : "check")}
+              <span>${option}</span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </div>
   `;
 }
 
@@ -1272,6 +1305,16 @@ document.addEventListener("click", (event) => {
   if (target.dataset.toggleFieldMenu) {
     state.openFieldMenu = state.openFieldMenu === target.dataset.toggleFieldMenu ? "" : target.dataset.toggleFieldMenu;
     renderProfiles();
+  }
+  if (target.dataset.categoryFilter) {
+    const value = target.dataset.categoryFilter;
+    const filter = `category = ${value}`;
+    const hasFilter = state.profileFilters.includes(filter);
+    state.profileFilters = hasFilter
+      ? state.profileFilters.filter((item) => item !== filter)
+      : [filter, ...state.profileFilters];
+    state.profileSearched = state.profileFilters.length > 0 || state.profileQuery.trim().length > 0;
+    triggerProfileLoad();
   }
   if (target.dataset.menuOption) {
     const key = target.dataset.menuOption;
