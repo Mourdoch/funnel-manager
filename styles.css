@@ -1,8 +1,10 @@
 :root {
   --rail: #303a96;
   --rail-active: rgba(255, 255, 255, 0.12);
-  --primary: #1C2128;
-  --primary-soft: rgba(28, 33, 40, 0.08);
+  --primary: #4050d8;
+  --primary-soft: #f0f1ff;
+  --button-primary: #1C2128;
+  --button-primary-soft: rgba(30, 38, 111, 0.08);
   --surface: #ffffff;
   --sheet: #f7f8fa;
   --page: #ffffff;
@@ -17,8 +19,8 @@
   --shadow: 0 2px 8px rgba(33, 35, 48, 0.08);
   --topbar: #f7f8fa;
   --field: #ffffff;
-  --chip-bg: rgba(28, 33, 40, 0.08);
-  --chip-border: rgba(28, 33, 40, 0.18);
+  --chip-bg: #f0f1ff;
+  --chip-border: #d7dafb;
   --text-h1-size: 20px;
   --text-h1-weight: 600;
   --text-h1-line: 20px;
@@ -142,7 +144,7 @@ button { cursor: pointer; text-transform: none; letter-spacing: 0; }
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: #1C2128;
+  background: var(--primary);
   color: #fff;
   font-weight: 700;
 }
@@ -337,10 +339,10 @@ p { margin: 0; }
   letter-spacing: 0;
   text-transform: none;
   color: #fff;
-  background: var(--primary);
+  background: var(--button-primary);
 }
-.button.text { background: transparent; color: var(--primary); }
-.button.tonal { background: var(--primary-soft); color: var(--primary); }
+.button.text { background: transparent; color: var(--button-primary); }
+.button.tonal { background: var(--button-primary-soft); color: var(--button-primary); }
 .button.surface { background: #fff; color: #4e5560; border: 1px solid var(--line); }
 .button.success { background: var(--success); }
 .button.error { background: var(--error); }
@@ -1147,11 +1149,11 @@ tbody tr:hover { background: #fafbff; }
   min-height: 36px;
   min-width: 190px;
   justify-content: center;
-  background: var(--primary);
+  background: var(--button-primary);
 }
 .estimation-button:disabled {
-  background: var(--primary-soft);
-  color: color-mix(in srgb, var(--primary) 55%, #fff);
+  background: var(--button-primary-soft);
+  color: color-mix(in srgb, var(--button-primary) 55%, #fff);
   opacity: .68;
 }
 .estimation-result {
@@ -1529,8 +1531,10 @@ tbody tr:hover { background: #fafbff; }
 body.dark {
   --rail: #1e266f;
   --rail-active: rgba(255, 255, 255, 0.14);
-  --primary: #1C2128;
-  --primary-soft: rgba(255, 255, 255, 0.12);
+  --primary: #8f9bff;
+  --primary-soft: rgba(143, 155, 255, 0.14);
+  --button-primary: #1C2128;
+  --button-primary-soft: rgba(30, 38, 111, 0.28);
   --page: #10141f;
   --surface: #171d2b;
   --sheet: #121826;
@@ -1540,8 +1544,8 @@ body.dark {
   --text: #e7eaf1;
   --muted: #a3abb8;
   --muted-2: #788292;
-  --chip-bg: rgba(255, 255, 255, 0.12);
-  --chip-border: rgba(255, 255, 255, 0.2);
+  --chip-bg: rgba(143, 155, 255, 0.14);
+  --chip-border: rgba(143, 155, 255, 0.28);
   --shadow: 0 2px 10px rgba(0,0,0,.28);
 }
 body.dark h1, body.dark h2, body.dark h3, body.dark h4,
