@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Funnel Manager</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..24,400,0,0" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="rail" aria-label="Primary navigation">
+        <div class="rail-logo" title="FunnelManager"><span class="material-symbols-outlined">filter_alt</span></div>
+        <button class="rail-icon" id="toggleDrawer" title="Menu"><span class="material-symbols-outlined">menu</span></button>
+        <nav class="rail-icons">
+          <button class="rail-icon active" data-route="home" title="Dashboard"><span class="material-symbols-outlined">dashboard</span></button>
+          <button class="rail-icon" data-route="profiles" title="Profile Explorer"><span class="material-symbols-outlined">person_search</span></button>
+          <button class="rail-icon" data-route="audiences" title="Audiences"><span class="material-symbols-outlined">groups</span></button>
+          <button class="rail-icon" data-route="aggregation" title="Aggregations"><span class="material-symbols-outlined">data_thresholding</span></button>
+          <button class="rail-icon muted-icon" title="Campaign"><span class="material-symbols-outlined">campaign</span></button>
+          <button class="rail-icon muted-icon" title="Reports"><span class="material-symbols-outlined">insert_chart</span></button>
+          <button class="rail-icon muted-icon" title="Integrations"><span class="material-symbols-outlined">account_tree</span></button>
+        </nav>
+        <div class="rail-bottom">
+          <button class="rail-icon muted-icon" title="Settings"><span class="material-symbols-outlined">settings</span></button>
+          <div class="user-dot">H</div>
+        </div>
+      </aside>
+
+      <div class="drawer-backdrop" id="drawerBackdrop"></div>
+      <aside class="drawer" id="drawer" aria-label="Side menu">
+        <div class="drawer-brand">
+          <div class="rail-logo"><span class="material-symbols-outlined">filter_alt</span></div>
+          <h3>FunnelManager</h3>
+        </div>
+        <nav class="drawer-list">
+          <button class="drawer-item active" data-route="home">Dashboard</button>
+          <button class="drawer-item muted-link">Data Services</button>
+          <button class="drawer-item muted-link">Segment</button>
+          <button class="drawer-item muted-link">Campaign</button>
+          <button class="drawer-item muted-link">Profile Testing</button>
+          <button class="drawer-item muted-link">GraphQL Explorer</button>
+          <button class="drawer-item" data-route="profiles">Profile Explorer</button>
+          <button class="drawer-item" data-route="aggregation">Aggregations</button>
+          <button class="drawer-item" data-route="audiences">Audiences</button>
+          <button class="drawer-item muted-link">Event dashboards</button>
+          <button class="drawer-item muted-link">Profile dashboards</button>
+          <button class="drawer-item muted-link">Master Feed</button>
+          <button class="drawer-item muted-link">CDS Extract</button>
+          <button class="drawer-item muted-link">Integration</button>
+          <button class="drawer-item muted-link">Monitoring & Logs</button>
+          <button class="drawer-item muted-link">Automation Designer</button>
+        </nav>
+        <div class="drawer-user">
+          <div class="user-dot">H</div>
+          <div><strong>heidy</strong><span>User preferences</span></div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="breadcrumbs" id="breadcrumbs">Home</div>
+          <div class="top-actions">
+            <button class="top-icon" id="themeToggle" title="Theme"><span class="material-symbols-outlined">light_mode</span></button>
+            <button class="top-icon" title="Density"><span class="material-symbols-outlined">tune</span></button>
+            <button class="top-icon" id="langToggle" title="Language"><span class="material-symbols-outlined">translate</span><small id="langLabel">EN</small></button>
+            <button class="top-icon" title="Notifications"><span class="material-symbols-outlined">notifications</span></button>
+            <button class="top-icon" title="Help"><span class="material-symbols-outlined">help</span></button>
+          </div>
+        </header>
+        <section id="view" class="view"></section>
+      </main>
+    </div>
+
+    <div id="modalRoot"></div>
+    <div id="toast" class="toast" role="status"></div>
+    <script src="./script.js"></script>
+  </body>
+</html>
