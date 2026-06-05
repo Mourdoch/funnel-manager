@@ -971,7 +971,6 @@ function renderProfileSourceAudienceCard() {
           </div>
           ${viewCriteriaButton()}
         </div>
-        <p class="muted small-note">Base filters define the starting population, not the final refinements.</p>
         ${variantCriteriaDetails()}
       </article>
     `;

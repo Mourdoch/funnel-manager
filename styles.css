@@ -1069,8 +1069,8 @@ tbody tr:hover { background: #fafbff; }
   display: grid;
   align-content: start;
   align-items: start;
-  gap: 16px;
-  padding: 0;
+  gap: 24px;
+  padding: 20px 16px;
 }
 .profile-source-banner {
   display: flex;
@@ -1230,13 +1230,14 @@ tbody tr:hover { background: #fafbff; }
   background: var(--surface);
 }
 .profile-source-result {
-  border-color: transparent;
+  border: 0;
   background: var(--surface);
   color: var(--text);
+  padding: 0;
 }
 .profile-source-result.estimated {
   padding: 16px;
-  border: 1px solid var(--line);
+  border: 0;
 }
 .profile-source-result .muted,
 .profile-source-result .small-note {
@@ -1253,7 +1254,7 @@ tbody tr:hover { background: #fafbff; }
   color: var(--button-primary);
 }
 .profile-source-result .progress {
-  background: #eceff5;
+  background: var(--line);
 }
 .estimation-actions {
   display: flex;
@@ -1680,7 +1681,7 @@ body.dark .active-filter-review,
 body.dark .activation-section,
 body.dark .audience-info-card { border-color: transparent; }
 body.dark .profile-source-result { background: var(--surface); color: var(--text); border-color: transparent; }
-body.dark .profile-source-result.estimated { border-color: var(--line); }
+body.dark .profile-source-result.estimated { border-color: transparent; }
 body.dark .example-list button,
 body.dark .suggested-prompt,
 body.dark .activation-card { background: #151b29; color: var(--text); border-color: var(--line); }
