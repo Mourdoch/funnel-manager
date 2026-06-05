@@ -402,8 +402,9 @@ function statusChip(status) {
   return chip(status, "gray");
 }
 
-function showToast(message) {
+function showToast(message, tone = "") {
   toast.textContent = message;
+  toast.classList.toggle("success", tone === "success");
   toast.classList.add("show");
   setTimeout(() => toast.classList.remove("show"), 3000);
 }
@@ -865,7 +866,7 @@ function renderAudienceBuilder() {
     ? ["Active customers in the last 7 days", "Android users interested in new devices", "iOS users who viewed entertainment bundles", "Users from selected regions who viewed tariffs"]
     : ["Clientes activos en los ultimos 7 dias", "Usuarios Android interesados en nuevos dispositivos", "Usuarios iOS que vieron paquetes de entretenimiento", "Usuarios de regiones seleccionadas que vieron tarifas"];
   const hasConditions = state.audienceBuilderConditions.length > 0;
-  const hasStartingAudience = state.audienceBuilderSource === "profiles";
+  const hasStartingAudience = state.audienceBuilderSource === "profiles" && state.audienceBuilderBaseFilters.length > 0;
   const canEstimate = state.audienceBuilderPrompt.trim().length > 0 || hasConditions;
   const showBuilderEmptyState = !hasStartingAudience && !hasConditions;
   const canActivate = hasConditions && state.audienceBuilderChannels.length === 1 && !state.audienceBuilderEstimateDirty;
@@ -882,7 +883,6 @@ function renderAudienceBuilder() {
         <div class="builder-top-actions">
           <button class="button text" data-action="cancel-audience-flow">${cancelLabel}</button>
           <button class="button tonal" data-action="save-audience-draft" ${hasConditions ? "" : "disabled"}>${t("saveDraft")}</button>
-          <button class="button tonal" data-action="save-audience" ${hasConditions ? "" : "disabled"}>${state.lang === "en" ? "Save Audience" : "Guardar audiencia"}</button>
           <button class="button" data-action="activate-audience-flow" ${canActivate ? "" : "disabled"}>${icon("bolt")} ${state.lang === "en" ? "Activate Audience" : "Activar audiencia"}</button>
         </div>
       </header>
@@ -1236,8 +1236,14 @@ function saveAudience(status) {
   const selectedChannels = state.audienceBuilderChannels.length ? state.audienceBuilderChannels : [];
   state.audiences.unshift({ id: `aud-${Date.now()}`, name, count: finalAudienceCount(), status, filters, channels: selectedChannels, created: "Jun 4, 2026" });
   state.lastAudienceName = name;
-  openAudienceResultModal(status, name);
-  showToast(t("audienceCreated"));
+  if (status === "activated") {
+    closeModal();
+    routeTo("audiences");
+    showToast(state.lang === "en" ? "Audience activated successfully" : "Audiencia activada correctamente", "success");
+  } else {
+    openAudienceResultModal(status, name);
+    showToast(t("audienceCreated"));
+  }
 }
 
 function defaultAudienceName() {
@@ -1380,7 +1386,6 @@ document.addEventListener("click", (event) => {
   if (target.dataset.action === "cancel-audience-flow") cancelAudienceFlow();
   if (target.dataset.action === "confirm-cancel-audience") closeModal(), routeTo(state.audienceBuilderSource === "profiles" ? "profiles" : "audiences");
   if (target.dataset.action === "save-audience-draft") saveAudience("draft");
-  if (target.dataset.action === "save-audience") saveAudience("draft");
   if (target.dataset.action === "activate-audience-flow") openActivateAudienceModal();
   if (target.dataset.action === "confirm-activate-audience") saveAudience("activated");
   if (target.dataset.activationChannel) toggleActivationChannel(target.dataset.activationChannel);
@@ -1550,7 +1555,7 @@ document.addEventListener("input", (event) => {
     const button = document.querySelector("[data-generate-audience]");
     if (button) button.disabled = Number(button.dataset.baseCount) === 0 && event.target.value.trim().length === 0;
     document.querySelectorAll("[data-action='generate-audience-page']").forEach((item) => {
-      item.disabled = state.audienceBuilderBaseFilters.length === 0 && event.target.value.trim().length === 0;
+      item.disabled = event.target.value.trim().length === 0;
     });
     document.querySelectorAll("[data-action='run-estimation']").forEach((item) => {
       item.disabled = event.target.value.trim().length === 0 && state.audienceBuilderConditions.length === 0;

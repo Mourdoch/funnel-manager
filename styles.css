@@ -1070,7 +1070,7 @@ tbody tr:hover { background: #fafbff; }
   align-content: start;
   align-items: start;
   gap: 16px;
-  padding: 20px;
+  padding: 0;
 }
 .profile-source-banner {
   display: flex;
@@ -1210,9 +1210,9 @@ tbody tr:hover { background: #fafbff; }
 .active-filter-review,
 .activation-section {
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 0;
 }
 .starting-audience-card,
 .audience-conditions {
@@ -1224,15 +1224,19 @@ tbody tr:hover { background: #fafbff; }
 .audience-info-card {
   display: grid;
   gap: 12px;
-  padding: 16px;
-  border: 1px solid var(--line);
+  padding: 0;
+  border: 0;
   border-radius: var(--radius);
   background: var(--surface);
 }
 .profile-source-result {
-  border-color: var(--line);
+  border-color: transparent;
   background: var(--surface);
   color: var(--text);
+}
+.profile-source-result.estimated {
+  padding: 16px;
+  border: 1px solid var(--line);
 }
 .profile-source-result .muted,
 .profile-source-result .small-note {
@@ -1634,6 +1638,7 @@ tbody tr:hover { background: #fafbff; }
 .channel.selected { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
 .toast { position: fixed; bottom: 24px; left: 80px; z-index: 100; background: #323232; color: #fff; border-radius: var(--radius); padding: 13px 18px; display: none; }
 .toast.show { display: block; }
+.toast.success { background: var(--success); color: #fff; }
 
 body.dark {
   --rail: #1e266f;
@@ -1670,7 +1675,12 @@ body.dark .starting-audience-card,
 body.dark .audience-conditions,
 body.dark .column-menu { background: var(--surface); color: var(--text); border-color: var(--line); }
 body.dark .audience-info-card { background: var(--surface); color: var(--text); border-color: var(--line); }
-body.dark .profile-source-result { background: var(--surface); color: var(--text); border-color: var(--line); }
+body.dark .builder-estimation-pane,
+body.dark .active-filter-review,
+body.dark .activation-section,
+body.dark .audience-info-card { border-color: transparent; }
+body.dark .profile-source-result { background: var(--surface); color: var(--text); border-color: transparent; }
+body.dark .profile-source-result.estimated { border-color: var(--line); }
 body.dark .example-list button,
 body.dark .suggested-prompt,
 body.dark .activation-card { background: #151b29; color: var(--text); border-color: var(--line); }
