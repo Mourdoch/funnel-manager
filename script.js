@@ -760,7 +760,7 @@ function audienceCard(a) {
   return `
     <article class="v-card audience-card hover">
       <div class="audience-card-head">
-        <h3>${a.name}</h3>
+        <h3 class="audience-card-title" title="${escapeAttr(a.name)}">${a.name}</h3>
         <div class="actions audience-menu-anchor">
           ${statusChip(a.status)}
           <button class="mini" data-toggle-audience-menu="${a.id}" title="More">${icon("more_vert")}</button>
@@ -772,11 +772,21 @@ function audienceCard(a) {
         </div>
       </div>
       <div class="audience-count kpi-value">${a.count.toLocaleString()} <span class="muted count-label">${t("profiles")}</span></div>
-      <div class="filter-row">${a.filters.map((f) => chip(f)).join("")}</div>
-      <p class="muted" style="margin-top:16px">${t("channels")}: ${a.channels.join(", ")}</p>
+      <div class="filter-row audience-filter-row">${a.filters.map((f) => chip(f)).join("")}</div>
+      <div class="channel-avatar-row" aria-label="${t("channels")}">${a.channels.map(channelAvatar).join("")}</div>
       <div class="audience-card-footer"><span class="muted">${a.created}</span>${a.status === "draft" ? `<button class="button success" data-activate="${a.id}">${icon("play_arrow")} ${t("activate")}</button>` : ""}</div>
     </article>
   `;
+}
+
+function channelAvatar(channel) {
+  const icons = {
+    Email: "mail",
+    SMS: "sms",
+    Push: "notifications_active",
+    Export: "download"
+  };
+  return `<span class="channel-avatar" title="${escapeAttr(channel)}">${icon(icons[channel] || "hub")}</span>`;
 }
 
 function audienceTable(list) {
@@ -892,12 +902,6 @@ function renderAudienceBuilder() {
             <h4>${state.lang === "en" ? "Suggested prompts" : "Prompts sugeridos"}</h4>
             <div class="suggested-prompt-list">${suggestedPrompts.map((prompt) => `<button class="suggested-prompt ${state.audienceBuilderSelectedPrompts.includes(prompt) ? "selected" : ""}" data-example="${escapeAttr(prompt)}"><span>${prompt}</span>${icon(state.audienceBuilderSelectedPrompts.includes(prompt) ? "check" : "add")}</button>`).join("")}</div>
           </section>
-
-          ${hasConditions ? renderAudienceConditions() : `
-            <section class="audience-conditions empty">
-              <h3>Audience Conditions</h3>
-              <p class="muted">${hasStartingAudience ? (state.lang === "en" ? "Run an estimation to convert the prompt into editable conditions. Profile Explorer filters stay as starting criteria only." : "Ejecuta la estimacion para convertir el prompt en condiciones editables. Los filtros de Profile Explorer quedan solo como criterios iniciales.") : (state.lang === "en" ? "Run an estimation to convert the prompt into editable audience conditions." : "Ejecuta la estimacion para convertir el prompt en condiciones editables.")}</p>
-            </section>`}
         </main>
 
         <aside class="builder-estimation-pane">
@@ -909,7 +913,7 @@ function renderAudienceBuilder() {
               <div class="activation-card-grid">${activationOptions().map(activationCard).join("")}</div>
             </section>
           ` : `
-            ${renderEstimationCard()}
+            ${renderEstimatedAudienceCard({ includeStartingAudience: false })}
             <section class="activation-section">
               <h3>${t("activationOptions")}</h3>
               <p class="muted">${state.lang === "en" ? "Select one mandatory activation type for the final audience." : "Selecciona un tipo de activacion obligatorio para la audiencia final."}</p>
@@ -951,10 +955,14 @@ function variantCriteriaDetails() {
 
 function renderProfileSourceAudienceCard() {
   const hasEstimated = state.audienceBuilderConditions.length > 0;
+  const canEstimate = state.audienceBuilderPrompt.trim().length > 0 || state.audienceBuilderConditions.length > 0;
   if (!hasEstimated) {
     return `
       <article class="audience-info-card profile-source-result">
-        <h3>Audience</h3>
+        <div class="card-heading">
+          <h3>Audience</h3>
+          <button class="button tonal" data-action="run-estimation" ${canEstimate ? "" : "disabled"}>${icon("play_arrow")} ${state.lang === "en" ? "Estimate" : "Estimar"}</button>
+        </div>
         <div class="variant-number"><strong class="kpi-value">1,451</strong> profiles</div>
         <div class="source-panel">
           <div>
@@ -968,18 +976,31 @@ function renderProfileSourceAudienceCard() {
       </article>
     `;
   }
+  return renderEstimatedAudienceCard({ includeStartingAudience: true });
+}
+
+function renderEstimatedAudienceCard({ includeStartingAudience }) {
+  const estimated = finalAudienceCount();
+  const baseCount = basePopulationCount();
+  const retained = Math.round((estimated / baseCount) * 100);
   const canEstimate = state.audienceBuilderPrompt.trim().length > 0 || state.audienceBuilderConditions.length > 0;
+  const comparison = includeStartingAudience
+    ? (state.lang === "en" ? `From ${baseCount.toLocaleString()} starting profiles to ${estimated.toLocaleString()} matching profiles` : `De ${baseCount.toLocaleString()} perfiles iniciales a ${estimated.toLocaleString()} perfiles coincidentes`)
+    : (state.lang === "en" ? `From ${baseCount.toLocaleString()} available profiles to ${estimated.toLocaleString()} matching profiles` : `De ${baseCount.toLocaleString()} perfiles disponibles a ${estimated.toLocaleString()} perfiles coincidentes`);
   return `
     <article class="audience-info-card profile-source-result estimated">
       <div class="card-heading">
         <h3>Final Audience</h3>
-        <button class="button tonal" data-action="run-estimation" ${canEstimate && state.audienceBuilderEstimateDirty ? "" : "disabled"}>${icon("play_arrow")} ${state.lang === "en" ? "Estimate" : "Estimar"}</button>
+        <div class="estimation-actions">
+          <button class="button tonal" data-action="run-estimation" ${canEstimate && state.audienceBuilderEstimateDirty ? "" : "disabled"}>${icon("play_arrow")} ${state.lang === "en" ? "Estimate" : "Estimar"}</button>
+          <button class="mini estimation-refresh" data-action="run-estimation" ${canEstimate ? "" : "disabled"} title="Refresh">${icon("refresh")}</button>
+        </div>
       </div>
-      <div class="variant-number"><strong class="kpi-value">857</strong> profiles</div>
-      <p><strong>59% retained</strong></p>
-      <div class="progress retained-progress"><span style="width:59%"></span></div>
-      <p class="muted">From 1,451 starting profiles to 857 matching profiles</p>
-      ${collapsedStartingRow()}
+      <div class="variant-number"><strong class="kpi-value">${estimated.toLocaleString()}</strong> ${t("profiles")}</div>
+      <p><strong>${retained}% ${state.lang === "en" ? "retained" : "retenido"}</strong></p>
+      <div class="progress retained-progress"><span style="width:${retained}%"></span></div>
+      <p class="muted">${comparison}</p>
+      ${includeStartingAudience ? collapsedStartingRow() : ""}
       <details class="split-expander">
         <summary><span>Audience breakdowns</span>${icon("expand_more")}</summary>
         ${compactBreakdowns("tiles")}
@@ -1015,8 +1036,19 @@ function basePopulationCount() {
 
 function finalAudienceCount() {
   if (!state.audienceBuilderConditions.length) return basePopulationCount();
-  const reduction = 210 + state.audienceBuilderConditions.length * 96;
-  return Math.max(342, basePopulationCount() - reduction);
+  const base = basePopulationCount();
+  const prompt = state.audienceBuilderPrompt.toLowerCase();
+  const promptScore = Array.from(prompt).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const channelScore = state.audienceBuilderChannels.reduce((sum, channel) => sum + channel.length, 0);
+  let retention = state.audienceBuilderSource === "profiles" ? 0.74 : 0.82;
+  retention -= Math.min(0.34, state.audienceBuilderConditions.length * 0.055);
+  if (/7|last 7|ultimos 7/.test(prompt)) retention -= 0.08;
+  if (/android|ios|device|dispositivo/.test(prompt)) retention -= 0.05;
+  if (/region|regiones|selected regions/.test(prompt)) retention -= 0.06;
+  if (/consent|consentimiento/.test(prompt)) retention -= 0.04;
+  retention += ((promptScore + channelScore) % 9) / 100;
+  const minimum = state.audienceBuilderSource === "profiles" ? 120 : 1260;
+  return Math.max(minimum, Math.round(base * Math.max(0.08, Math.min(0.97, retention))));
 }
 
 function renderStartingAudienceCard() {
@@ -1128,6 +1160,7 @@ function activationCard(option) {
 function showAudienceReview() {
   const promptInput = document.getElementById("audiencePrompt");
   if (promptInput) state.audienceBuilderPrompt = promptInput.value.trim();
+  if (!state.audienceBuilderPrompt.trim() && !state.audienceBuilderConditions.length) return;
   state.audienceBuilderFilters = deriveFilters(state.audienceBuilderPrompt || state.audienceBuilderBaseFilters.join(" "));
   if (!state.audienceBuilderConditions.length || state.audienceBuilderPrompt !== state.audienceBuilderLastEstimatedPrompt) {
     state.audienceBuilderConditions = generateAudienceConditions(state.audienceBuilderPrompt);
@@ -1136,6 +1169,25 @@ function showAudienceReview() {
   state.audienceBuilderEstimateDirty = false;
   state.audienceBuilderStep = "review";
   routeTo("audienceBuilder");
+}
+
+function toggleSuggestedPrompt(prompt) {
+  const selected = state.audienceBuilderSelectedPrompts.includes(prompt);
+  state.audienceBuilderSelectedPrompts = selected
+    ? state.audienceBuilderSelectedPrompts.filter((item) => item !== prompt)
+    : [...state.audienceBuilderSelectedPrompts, prompt];
+  state.audienceBuilderPrompt = selected
+    ? removePromptText(state.audienceBuilderPrompt, prompt)
+    : [state.audienceBuilderPrompt.trim(), prompt].filter(Boolean).join(". ");
+  state.audienceBuilderEstimateDirty = true;
+}
+
+function removePromptText(text, prompt) {
+  return text
+    .split(".")
+    .map((part) => part.trim())
+    .filter((part) => part && part !== prompt)
+    .join(". ");
 }
 
 function generateAudienceConditions(text) {
@@ -1186,6 +1238,38 @@ function saveAudience(status) {
   state.lastAudienceName = name;
   openAudienceResultModal(status, name);
   showToast(t("audienceCreated"));
+}
+
+function defaultAudienceName() {
+  return titleCase(state.audienceBuilderPrompt || state.audienceBuilderSelectedPrompts[0] || t("newAudience")).slice(0, 80);
+}
+
+function openActivateAudienceModal() {
+  const name = defaultAudienceName();
+  modalRoot.innerHTML = `
+    <div class="modal-backdrop activate-backdrop">
+      <section class="modal activate-modal" role="dialog" aria-modal="true" aria-label="${state.lang === "en" ? "Activate Audience" : "Activar audiencia"}">
+        <header class="activate-modal-header">
+          <div>
+            <h2>${state.lang === "en" ? "Activate Audience" : "Activar audiencia"}</h2>
+            <p class="muted">${state.lang === "en" ? "Give your audience a name before activating." : "Dale un nombre a tu audiencia antes de activarla."}</p>
+          </div>
+          <button class="close activate-close" data-close-modal aria-label="${t("cancel")}">${icon("close")}</button>
+        </header>
+        <div class="activate-modal-body">
+          <label class="activate-name-field">
+            <span>${t("audienceName")}</span>
+            <input class="input" id="audienceName" maxlength="80" value="${escapeAttr(name)}" />
+            <small id="audienceNameCounter">${name.length}/80</small>
+          </label>
+        </div>
+        <footer class="activate-modal-footer">
+          <button class="button surface" data-close-modal>${t("cancel")}</button>
+          <button class="button" data-action="confirm-activate-audience">${icon("bolt")} ${state.lang === "en" ? "Activate" : "Activar"}</button>
+        </footer>
+      </section>
+    </div>
+  `;
 }
 
 function cancelAudienceFlow() {
@@ -1297,7 +1381,8 @@ document.addEventListener("click", (event) => {
   if (target.dataset.action === "confirm-cancel-audience") closeModal(), routeTo(state.audienceBuilderSource === "profiles" ? "profiles" : "audiences");
   if (target.dataset.action === "save-audience-draft") saveAudience("draft");
   if (target.dataset.action === "save-audience") saveAudience("draft");
-  if (target.dataset.action === "activate-audience-flow") saveAudience("activated");
+  if (target.dataset.action === "activate-audience-flow") openActivateAudienceModal();
+  if (target.dataset.action === "confirm-activate-audience") saveAudience("activated");
   if (target.dataset.activationChannel) toggleActivationChannel(target.dataset.activationChannel);
   if (target.dataset.action === "create-audience-from-profile") openAudienceBuilder(currentBaseFilters(), "profiles");
   if (target.dataset.action === "toggle-builder-criteria") state.audienceBuilderCriteriaExpanded = !state.audienceBuilderCriteriaExpanded, renderAudienceBuilder();
@@ -1404,12 +1489,7 @@ document.addEventListener("click", (event) => {
   }
   if (target.dataset.generateAudience !== undefined) showAudienceReview();
   if (target.dataset.example) {
-    if (!state.audienceBuilderSelectedPrompts.includes(target.dataset.example)) {
-      state.audienceBuilderSelectedPrompts = [...state.audienceBuilderSelectedPrompts, target.dataset.example];
-      state.audienceBuilderPrompt = [state.audienceBuilderPrompt, target.dataset.example].filter(Boolean).join(". ");
-      state.audienceBuilderEstimateDirty = true;
-    }
-    document.getElementById("audiencePrompt").value = state.audienceBuilderPrompt;
+    toggleSuggestedPrompt(target.dataset.example);
     renderAudienceBuilder();
   }
   if (target.dataset.refineAudience !== undefined) state.audienceBuilderStep = "compose", routeTo("audienceBuilder");
@@ -1476,6 +1556,10 @@ document.addEventListener("input", (event) => {
       item.disabled = event.target.value.trim().length === 0 && state.audienceBuilderConditions.length === 0;
     });
     document.querySelectorAll("[data-action='activate-audience-flow']").forEach((item) => item.disabled = true);
+  }
+  if (event.target.id === "audienceName") {
+    const counter = document.getElementById("audienceNameCounter");
+    if (counter) counter.textContent = `${event.target.value.length}/80`;
   }
   if (event.target.dataset.conditionValue !== undefined) {
     state.audienceBuilderConditions[Number(event.target.dataset.conditionValue)].value = event.target.value;
