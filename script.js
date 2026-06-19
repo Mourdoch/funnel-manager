@@ -1021,12 +1021,7 @@ function collapsedStartingRow() {
 }
 
 function compactBreakdowns(mode = "tiles") {
-  const items = [
-    ["Device split", "Android 54%", "iOS 46%"],
-    ["Region split", "North 38%", "Central 34%", "South 28%"],
-    ["Interest split", "Devices 42%", "Tariffs 31%", "Entertainment 27%"]
-  ];
-  return `<div class="variant-breakdowns ${mode}">${items.map(([title, ...rows]) => `<div><strong>${title}</strong>${rows.map((row) => `<span>${row}</span>`).join("")}</div>`).join("")}</div>`;
+  return `<div class="variant-breakdowns ${mode}">${audienceBreakdownData().map((item) => breakdownChart(item, "compact")).join("")}</div>`;
 }
 
 function basePopulationCount() {
@@ -1119,16 +1114,41 @@ function renderEstimationCard() {
       <p>${comparison}</p>
       <div class="progress"><span style="width:${Math.round((estimated / basePopulationCount()) * 100)}%"></span></div>
       <div class="breakdown-grid">
-        ${breakdown("Device split", [["Android", 54], ["iOS", 46]])}
-        ${breakdown("Region split", [["North", 38], ["Central", 34], ["South", 28]])}
-        ${breakdown("Interest split", [["Devices", 42], ["Tariffs", 31], ["Entertainment", 27]])}
+        ${audienceBreakdownData().map((item) => breakdownChart(item)).join("")}
       </div>
     </section>
   `;
 }
 
-function breakdown(title, rows) {
-  return `<div class="breakdown"><strong>${title}</strong>${rows.map(([label, value]) => `<span><em>${label}</em><b>${value}%</b></span>`).join("")}</div>`;
+function audienceBreakdownData() {
+  return [
+    { title: "Device split", rows: [["Android", 54, "blue"], ["iOS", 46, "teal"]] },
+    { title: "Region split", rows: [["North", 38, "blue"], ["Central", 34, "teal"], ["South", 28, "slate"]] },
+    { title: "Interest split", rows: [["Devices", 42, "blue"], ["Tariffs", 31, "teal"], ["Entertainment", 27, "slate"]] }
+  ];
+}
+
+function breakdownChart(item, variant = "default") {
+  let offset = 0;
+  const segments = item.rows.map(([label, value, tone]) => {
+    const style = `left:${offset}%;width:${value}%`;
+    offset += value;
+    return `<span class="breakdown-chart-segment ${tone}" style="${style}" title="${escapeAttr(`${label} ${value}%`)}"></span>`;
+  }).join("");
+  return `
+    <div class="breakdown chart-breakdown ${variant === "compact" ? "compact" : ""}">
+      <div class="breakdown-chart-head">
+        <strong>${item.title}</strong>
+        <span>${item.rows.length} ${state.lang === "en" ? "segments" : "segmentos"}</span>
+      </div>
+      <div class="breakdown-chart-bar" aria-label="${escapeAttr(item.title)}">
+        ${segments}
+      </div>
+      <div class="breakdown-chart-legend">
+        ${item.rows.map(([label, value, tone]) => `<span><i class="${tone}"></i><em>${label}</em><b>${value}%</b></span>`).join("")}
+      </div>
+    </div>
+  `;
 }
 
 function activationOptions() {

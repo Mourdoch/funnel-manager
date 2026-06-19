@@ -1418,14 +1418,92 @@ tbody tr:hover { background: #fafbff; }
   border-radius: var(--radius);
   background: rgba(255,255,255,.08);
 }
+.chart-breakdown {
+  gap: 10px;
+}
+.breakdown-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.breakdown-chart-head span {
+  color: rgba(255,255,255,.66);
+  font-size: var(--text-body-2-size);
+  line-height: var(--text-body-2-line);
+}
+.breakdown-chart-bar {
+  position: relative;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,.12);
+  line-height: 0;
+}
+.breakdown-chart-segment {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 4px;
+}
+.breakdown-chart-segment.blue,
+.breakdown-chart-legend i.blue { background: #5b8def; }
+.breakdown-chart-segment.teal,
+.breakdown-chart-legend i.teal { background: #2bb8a8; }
+.breakdown-chart-segment.slate,
+.breakdown-chart-legend i.slate { background: #8f9bb8; }
+.breakdown-chart-legend {
+  display: grid;
+  gap: 7px;
+}
+.breakdown-chart-legend span {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+}
+.breakdown-chart-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
 .breakdown span {
   display: flex;
   justify-content: space-between;
   gap: 8px;
 }
+.breakdown-chart-bar .breakdown-chart-segment {
+  display: block;
+  height: 10px;
+  min-height: 10px;
+  justify-content: initial;
+}
+.breakdown-chart-legend span {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  justify-content: initial;
+}
 .breakdown em {
   font-style: normal;
   color: rgba(255,255,255,.78);
+}
+.profile-source-result .chart-breakdown {
+  background: var(--sheet);
+}
+.profile-source-result .breakdown-chart-head span,
+.profile-source-result .breakdown-chart-legend span {
+  color: var(--muted);
+}
+.profile-source-result .breakdown-chart-bar {
+  background: var(--line);
+}
+.profile-source-result .breakdown-chart-legend em {
+  color: var(--text);
+}
+.profile-source-result .breakdown-chart-legend b {
+  color: var(--muted);
 }
 .estimate strong.kpi-value {
   font-size: var(--text-kpi-size);
