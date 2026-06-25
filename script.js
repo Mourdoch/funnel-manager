@@ -17,8 +17,10 @@ const state = {
   profileItemsPerPage: 5,
   openFieldMenu: urlParams.get("fieldMenu") || "",
   fieldValues: {},
-  audienceView: "cards",
+  audienceView: "table",
   audienceTab: "all",
+  audienceQuery: "",
+  audienceSort: "updated",
   audienceColumns: Number(urlParams.get("columns") || 4),
   audienceColumnMenu: urlParams.get("columnsMenu") === "1",
   audienceActionMenu: urlParams.get("audienceMenu") || "",
@@ -41,9 +43,13 @@ const state = {
   audienceBuilderResult: null,
   lastAudienceName: "",
   audiences: [
-    { id: "aud-1", name: "Clientes activos ultimos 30 dias", count: 8124, status: "activated", filters: ["category = customer", "last_seen > last 30 days"], channels: ["Email", "Push"], created: "Apr 3, 2026" },
-    { id: "aud-2", name: "Visitantes de marca con consentimiento", count: 3450, status: "draft", filters: ["category = visitor", "source = dev-brand-demo-consent"], channels: ["Email"], created: "Apr 5, 2026" },
-    { id: "aud-3", name: "Clientes de alto valor 7d", count: 1890, status: "activated", filters: ["category = customer", "last_seen > last 7 days"], channels: ["Email", "SMS"], created: "Apr 6, 2026" }
+    { id: "aud-1", name: "Active Clients 30d", count: 8152, status: "draft", issue: "Not Activated", activation: "Push", criteria: 1, filters: ["category = customer", "last_seen > last 30 days"], channels: ["Push"], created: "Apr 3, 2026", updated: "Jun 1, 2026" },
+    { id: "aud-2", name: "New Subscribers", count: 5251, status: "paused", issue: "Activation paused", activation: "Push", criteria: 2, filters: ["category = visitor", "source = dev-brand-demo-consent"], channels: ["Push"], created: "Apr 5, 2026", updated: "Jun 8, 2026" },
+    { id: "aud-3", name: "High-Value Customers", count: 1000, status: "error", issue: "Email Failed", activation: "Push", criteria: 3, filters: ["category = customer", "last_seen > last 7 days"], channels: ["Push"], created: "Apr 6, 2026", updated: "Jun 15, 2026" },
+    { id: "aud-4", name: "Lapsed customers (90+ days inactive)", count: 2000, status: "activated", issue: "", activation: "Email", criteria: 3, filters: ["category = customer", "last_seen > last 90 days"], channels: ["Email"], created: "Apr 12, 2026", updated: "Jun 22, 2026" },
+    { id: "aud-5", name: "Cart Abandoners", count: 3000, status: "activated", issue: "", activation: "Email", criteria: 3, filters: ["cart = abandoned", "last_seen > last 14 days"], channels: ["Email"], created: "Apr 16, 2026", updated: "Jun 29, 2026" },
+    { id: "aud-6", name: "Mobile-first power shoppers", count: 8124, status: "activated", issue: "", activation: "Email", criteria: 3, filters: ["device = mobile", "purchase_intent = high"], channels: ["Email"], created: "Apr 20, 2026", updated: "Jul 3, 2026" },
+    { id: "aud-7", name: "Loyal Returning Customers", count: 8124, status: "activated", issue: "", activation: "Push", criteria: 5, filters: ["orders > 3", "loyalty = enrolled"], channels: ["Push"], created: "Apr 23, 2026", updated: "Jul 7, 2026" }
   ],
   aggregations: [
     { id: "consented_customers_daily", metric: "Clientes consentidos diarios", useCase: "Event-based", source: "dev-brand-demo-consent", type: "count", column: "customer_id", timeRange: "Daily", labels: ["consent", "customer"], status: "activated" },
@@ -145,7 +151,25 @@ const copy = {
     all: "All",
     active: "Active",
     drafts: "Drafts",
-    searchAudiences: "Search audiences...",
+    paused: "Paused",
+    errorState: "Error",
+    needsAttention: "Needs attention",
+    allAudiences: "All audiences",
+    searchAudiences: "Search Audience by name",
+    sort: "Sort",
+    recentlyUpdated: "Recently updated",
+    sortByName: "Name",
+    sortByProfiles: "Profiles",
+    audienceNameLabel: "Audience name",
+    issues: "Issues",
+    activation: "Activation",
+    criteria: "Criteria",
+    updated: "Updated",
+    continueEditing: "Continue edition",
+    resume: "Resume",
+    resolveIssues: "Resolve Issues",
+    viewAudience: "View audience",
+    noAudiences: "No audiences match this view",
     profiles: "profiles",
     channels: "Channels",
     activate: "Activate",
@@ -291,7 +315,25 @@ const copy = {
     all: "Todas",
     active: "Activas",
     drafts: "Borradores",
-    searchAudiences: "Buscar audiencias...",
+    paused: "Pausadas",
+    errorState: "Error",
+    needsAttention: "Requieren atencion",
+    allAudiences: "Todas las audiencias",
+    searchAudiences: "Buscar audiencia por nombre",
+    sort: "Ordenar",
+    recentlyUpdated: "Actualizadas recientemente",
+    sortByName: "Nombre",
+    sortByProfiles: "Perfiles",
+    audienceNameLabel: "Nombre de audiencia",
+    issues: "Incidencias",
+    activation: "Activacion",
+    criteria: "Criterios",
+    updated: "Actualizado",
+    continueEditing: "Continuar edicion",
+    resume: "Reanudar",
+    resolveIssues: "Resolver incidencias",
+    viewAudience: "Ver audiencia",
+    noAudiences: "No hay audiencias para esta vista",
     profiles: "perfiles",
     channels: "Canales",
     activate: "Activar",
@@ -398,6 +440,7 @@ function statusChip(status) {
   if (status === "activated") return chip(state.lang === "en" ? "Active" : "Activado", "success");
   if (status === "deactivated") return chip(state.lang === "en" ? "Inactive" : "Desactivado", "gray");
   if (status === "draft") return chip(state.lang === "en" ? "Draft" : "Borrador", "warning");
+  if (status === "paused") return chip(state.lang === "en" ? "Paused" : "Pausada", "paused");
   if (status === "error") return chip("Error", "error");
   return chip(status, "gray");
 }
@@ -722,47 +765,153 @@ function currentBaseFilters() {
 function renderAudiences() {
   setBreadcrumb("audiences");
   const total = state.audiences.reduce((sum, a) => sum + a.count, 0);
-  const filtered = state.audiences.filter((a) => state.audienceTab === "all" || a.status === state.audienceTab);
+  const filtered = sortedAudiences(state.audiences.filter((a) => audienceInTab(a) && audienceMatchesQuery(a)));
+  const needsAttention = sortedAudiences(state.audiences.filter((a) => ["draft", "paused", "error"].includes(a.status) && audienceMatchesQuery(a)));
   view.innerHTML = `
-    <div class="title-row">
-      <div>
-        <h1>${t("audiences")}</h1>
-        <p class="subtitle">${state.audiences.length} ${state.lang === "en" ? `audiences - ${total.toLocaleString()} total profiles` : `audiencias - ${total.toLocaleString()} perfiles totales`}</p>
-      </div>
-      <div class="actions">
-        <div class="button-group" role="group" aria-label="Audience view">
-          <button class="${state.audienceView === "cards" ? "active" : ""}" data-action="cards">${icon("grid_view")} ${t("cardView")}</button>
-          <button class="${state.audienceView === "table" ? "active" : ""}" data-action="table">${icon("table")} ${t("tableView")}</button>
+    <div class="audience-viewer">
+      <div class="audience-title-row">
+        <div>
+          <h1>${t("audiences")}</h1>
+          <p class="subtitle">${state.audiences.length} ${state.lang === "en" ? `audiences - ${total.toLocaleString()} total profiles` : `audiencias - ${total.toLocaleString()} perfiles totales`}</p>
         </div>
-        <div class="column-menu-anchor">
-          <button class="button surface" data-action="toggle-column-menu">${icon("view_column")} ${state.audienceColumns}</button>
-          ${state.audienceColumnMenu ? `<div class="column-menu">${[4, 5, 6].map((cols) => `<button data-audience-columns="${cols}">${cols} ${t("columns")}</button>`).join("")}</div>` : ""}
+        <div class="audience-head-actions">
+          <div class="button-group audience-view-toggle" role="group" aria-label="Audience view">
+            <button class="${state.audienceView === "table" ? "active" : ""}" data-action="table" title="${t("tableView")}" aria-label="${t("tableView")}">${icon("table")}</button>
+            <button class="${state.audienceView === "cards" ? "active" : ""}" data-action="cards" title="${t("cardView")}" aria-label="${t("cardView")}">${icon("grid_view")}</button>
+          </div>
+          <button class="button audience-create-button" data-action="new-audience">${icon("add")} ${t("newAudience")}</button>
         </div>
-        <button class="button" data-action="new-audience">${icon("group_add")} ${t("newAudience")}</button>
       </div>
-    </div>
-    <div class="toolbar grow">
-      <div class="tabs">
-        ${audienceTab("all", `${t("all")} ${state.audiences.length}`)}
-        ${audienceTab("activated", `${t("active")} ${state.audiences.filter((a) => a.status === "activated").length}`)}
-        ${audienceTab("draft", `${t("drafts")} ${state.audiences.filter((a) => a.status === "draft").length}`)}
+      <div class="audience-function-row">
+        <div class="tabs audience-tabs">
+          ${audienceTab("all", `${t("all")} (${state.audiences.length})`)}
+          ${audienceTab("activated", `${t("active")} (${audienceStatusCount("activated")})`)}
+          ${audienceTab("draft", `${t("drafts")} (${audienceStatusCount("draft")})`)}
+          ${audienceTab("paused", `${t("paused")} (${audienceStatusCount("paused")})`)}
+          ${audienceTab("error", `${t("errorState")} (${audienceStatusCount("error")})`)}
+        </div>
+        <div class="audience-filter-tools ${state.audienceView === "cards" ? "cards-order" : ""}">
+          ${audienceSortField()}
+          ${audienceSearchField()}
+        </div>
       </div>
-      <input class="input search-input" placeholder="${t("searchAudiences")}" />
+      ${audienceBody(filtered, needsAttention)}
     </div>
-    ${state.audienceView === "table" ? audienceTable(filtered) : `<div class="audience-grid" style="--audience-columns:${state.audienceColumns}">${filtered.map(audienceCard).join("")}</div>`}
   `;
+}
+
+function audienceStatusCount(status) {
+  return state.audiences.filter((a) => a.status === status).length;
+}
+
+function audienceInTab(audience) {
+  return state.audienceTab === "all" || audience.status === state.audienceTab;
+}
+
+function audienceMatchesQuery(audience) {
+  const query = state.audienceQuery.trim().toLowerCase();
+  if (!query) return true;
+  return [
+    audience.name,
+    audience.status,
+    audience.issue,
+    audience.activation,
+    ...(audience.filters || []),
+    ...(audience.channels || [])
+  ].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
+}
+
+function sortedAudiences(list) {
+  const sorted = [...list];
+  if (state.audienceSort === "name") sorted.sort((a, b) => a.name.localeCompare(b.name));
+  else if (state.audienceSort === "profiles") sorted.sort((a, b) => b.count - a.count);
+  else sorted.sort((a, b) => new Date(b.updated || b.created) - new Date(a.updated || a.created));
+  return sorted;
 }
 
 function audienceTab(id, label) {
   return `<button class="tab ${state.audienceTab === id ? "active" : ""}" data-audience-tab="${id}">${label}</button>`;
 }
 
-function audienceCard(a) {
+function audienceSortField() {
   return `
-    <article class="v-card audience-card hover">
+    <label class="audience-field audience-sort-field">
+      ${icon("sort")}
+      <span>${t("sort")}:</span>
+      <select class="audience-sort-select" id="audienceSort" aria-label="${t("sort")}">
+        <option value="updated" ${state.audienceSort === "updated" ? "selected" : ""}>${t("recentlyUpdated")}</option>
+        <option value="name" ${state.audienceSort === "name" ? "selected" : ""}>${t("sortByName")}</option>
+        <option value="profiles" ${state.audienceSort === "profiles" ? "selected" : ""}>${t("sortByProfiles")}</option>
+      </select>
+      ${icon("expand_more")}
+    </label>
+  `;
+}
+
+function audienceSearchField() {
+  return `
+    <label class="audience-field audience-search-field">
+      ${icon("search")}
+      <input id="audienceQuery" value="${escapeAttr(state.audienceQuery)}" placeholder="${t("searchAudiences")}" aria-label="${t("searchAudiences")}" />
+      ${state.audienceQuery ? `<button class="mini audience-clear-query" data-action="clear-audience-query" title="${t("clear")}" aria-label="${t("clear")}">${icon("close")}</button>` : ""}
+    </label>
+  `;
+}
+
+function audienceBody(filtered, needsAttention) {
+  if (state.audienceView === "cards") return audienceCardsBody(filtered, needsAttention);
+  return audienceTableBody(filtered, needsAttention);
+}
+
+function audienceTableBody(filtered, needsAttention) {
+  if (state.audienceTab !== "all") return audienceSection(audienceTabTitle(), filtered, "table");
+  return `
+    ${audienceSection(`${t("needsAttention")} · ${needsAttention.length}`, needsAttention, "table", true)}
+    ${audienceSection(t("allAudiences"), filtered, "table")}
+  `;
+}
+
+function audienceCardsBody(filtered, needsAttention) {
+  if (state.audienceTab !== "all") return audienceSection(audienceTabTitle(), filtered, "cards");
+  return `
+    ${audienceSection(t("needsAttention"), needsAttention, "cards", true)}
+    ${audienceSection(t("allAudiences"), filtered, "cards")}
+  `;
+}
+
+function audienceTabTitle() {
+  const labels = {
+    activated: t("active"),
+    draft: t("drafts"),
+    paused: t("paused"),
+    error: t("errorState")
+  };
+  return `${labels[state.audienceTab] || t("all")} ${t("audiences")}`;
+}
+
+function audienceSection(title, list, mode, attention = false) {
+  const empty = `<div class="audience-empty">${icon("groups")}<span>${t("noAudiences")}</span></div>`;
+  const body = mode === "table"
+    ? audienceTable(list, attention)
+    : `<div class="audience-card-grid ${attention ? "attention" : ""}">${list.map((a) => audienceCard(a, attention)).join("")}</div>`;
+  return `
+    <section class="audience-section ${attention ? "attention" : ""}">
+      <div class="audience-section-head">
+        <span>${title}</span>
+        ${attention && mode === "table" ? `<button class="mini attention-next" title="${t("needsAttention")}">${icon("chevron_right")}</button>` : ""}
+      </div>
+      ${list.length ? body : empty}
+    </section>
+  `;
+}
+
+function audienceCard(a, attention = false) {
+  const action = audienceRowAction(a, true);
+  return `
+    <article class="audience-view-card ${attention ? "attention-card" : ""}">
       <div class="audience-card-head">
         <h3 class="audience-card-title" title="${escapeAttr(a.name)}">${a.name}</h3>
-        <div class="actions audience-menu-anchor">
+        <div class="audience-card-tools">
           ${statusChip(a.status)}
           <button class="mini" data-toggle-audience-menu="${a.id}" title="More">${icon("more_vert")}</button>
           ${state.audienceActionMenu === a.id ? `
@@ -772,10 +921,19 @@ function audienceCard(a) {
             </div>` : ""}
         </div>
       </div>
-      <div class="audience-count kpi-value">${a.count.toLocaleString()} <span class="muted count-label">${t("profiles")}</span></div>
-      <div class="filter-row audience-filter-row">${a.filters.map((f) => chip(f)).join("")}</div>
-      <div class="channel-avatar-row" aria-label="${t("channels")}">${a.channels.map(channelAvatar).join("")}</div>
-      <div class="audience-card-footer"><span class="muted">${a.created}</span>${a.status === "draft" ? `<button class="button success" data-activate="${a.id}">${icon("play_arrow")} ${t("activate")}</button>` : ""}</div>
+      <div class="audience-card-metrics">
+        <strong>${a.count.toLocaleString()}</strong>
+        <span>${t("profiles")}</span>
+        <span>·</span>
+        <span>${a.issue || a.activation}</span>
+        <span>·</span>
+        <span>${criteriaLabel(a)}</span>
+        ${icon("chevron_right")}
+      </div>
+      <div class="audience-card-footer">
+        <span class="muted">${t("updated")} ${a.created}</span>
+        ${action}
+      </div>
     </article>
   `;
 }
@@ -792,13 +950,52 @@ function channelAvatar(channel) {
 
 function audienceTable(list) {
   return `
-    <div class="table-card">
-      <table>
-        <thead><tr><th>${t("name")}</th><th>${t("state")}</th><th>${t("profiles")}</th><th>${t("filters")}</th><th>${t("channels")}</th><th>${t("created")}</th><th></th></tr></thead>
-        <tbody>${list.map((a) => `<tr><td>${a.name}</td><td>${statusChip(a.status)}</td><td>${a.count.toLocaleString()}</td><td>${a.filters.map((f) => chip(f)).join(" ")}</td><td>${a.channels.join(", ")}</td><td>${a.created}</td><td><button class="mini" data-edit-audience="${a.id}">${icon("more_horiz")}</button></td></tr>`).join("")}</tbody>
+    <div class="table-card audience-table-card">
+      <table class="audience-table">
+        <thead>
+          <tr>
+            <th>${t("audienceNameLabel")} ${icon("arrow_upward")}</th>
+            <th>${t("state")}</th>
+            <th>${t("issues")}</th>
+            <th>${t("profiles")}</th>
+            <th>${t("activation")}</th>
+            <th>${t("criteria")}</th>
+            <th>${t("updated")} ${icon("arrow_upward")}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${list.map(audienceTableRow).join("")}</tbody>
       </table>
+      <div class="table-footer"><span>1-${list.length} ${t("pageOf")} ${list.length}</span><div class="actions"><button class="mini" title="Previous">${icon("chevron_left")}</button><button class="mini" title="Next">${icon("chevron_right")}</button></div></div>
     </div>
   `;
+}
+
+function audienceTableRow(a) {
+  return `
+    <tr class="${a.status === "draft" ? "selected-row" : ""}">
+      <td><strong>${a.name}</strong></td>
+      <td>${statusChip(a.status)}</td>
+      <td>${a.issue || "&ndash;"}</td>
+      <td>${a.count.toLocaleString()}</td>
+      <td>${a.activation || a.channels.join(", ")}</td>
+      <td><span>${criteriaLabel(a)}</span><button class="mini inline-chevron" title="${t("criteria")}">${icon("expand_more")}</button></td>
+      <td>${a.updated || a.created}</td>
+      <td><div class="audience-row-actions"><button class="mini" data-toggle-audience-menu="${a.id}" title="More">${icon("more_vert")}</button>${audienceRowAction(a)}</div></td>
+    </tr>
+  `;
+}
+
+function criteriaLabel(a) {
+  const count = Number(a.criteria || (a.filters ? a.filters.length : 0));
+  return `${count} ${count === 1 ? "criteria" : "criteria"}`;
+}
+
+function audienceRowAction(a, compact = false) {
+  if (a.status === "draft") return `<button class="button surface audience-action-pill" data-edit-audience="${a.id}">${icon("edit_square")} ${t("continueEditing")}</button>`;
+  if (a.status === "paused") return `<button class="button success audience-action-pill" data-activate="${a.id}">${icon("play_arrow")} ${t("resume")}</button>`;
+  if (a.status === "error") return `<button class="button error audience-action-pill" data-edit-audience="${a.id}">${icon("warning")} ${t("resolveIssues")}</button>`;
+  return compact ? `<button class="mini audience-eye" data-edit-audience="${a.id}" title="${t("viewAudience")}">${icon("visibility")}</button>` : "";
 }
 
 function renderAggregation() {
@@ -1501,10 +1698,11 @@ document.addEventListener("click", (event) => {
   if (target.dataset.audienceTab) state.audienceTab = target.dataset.audienceTab, renderAudiences();
   if (target.dataset.action === "cards") state.audienceView = "cards", renderAudiences();
   if (target.dataset.action === "table") state.audienceView = "table", renderAudiences();
+  if (target.dataset.action === "clear-audience-query") state.audienceQuery = "", renderAudiences();
   if (target.dataset.action === "toggle-column-menu") state.audienceColumnMenu = !state.audienceColumnMenu, renderAudiences();
   if (target.dataset.audienceColumns) state.audienceColumns = Number(target.dataset.audienceColumns), state.audienceColumnMenu = false, renderAudiences();
   if (target.dataset.toggleAudienceMenu) state.audienceActionMenu = state.audienceActionMenu === target.dataset.toggleAudienceMenu ? "" : target.dataset.toggleAudienceMenu, renderAudiences();
-  if (target.dataset.activate) state.audiences = state.audiences.map((a) => a.id === target.dataset.activate ? { ...a, status: "activated" } : a), renderAudiences();
+  if (target.dataset.activate) state.audiences = state.audiences.map((a) => a.id === target.dataset.activate ? { ...a, status: "activated", issue: "", updated: "Jul 8, 2026" } : a), renderAudiences();
   if (target.dataset.deleteAudience) state.audiences = state.audiences.filter((a) => a.id !== target.dataset.deleteAudience), state.audienceActionMenu = "", renderAudiences();
   if (target.dataset.editAudience) {
     const audience = state.audiences.find((a) => a.id === target.dataset.editAudience);
@@ -1562,10 +1760,23 @@ document.addEventListener("change", (event) => {
     state.audienceBuilderEstimateDirty = true;
     renderAudienceBuilder();
   }
+  if (event.target.id === "audienceSort") {
+    state.audienceSort = event.target.value;
+    renderAudiences();
+  }
 });
 
 document.addEventListener("input", (event) => {
   if (event.target.id === "profileQuery") state.profileQuery = event.target.value;
+  if (event.target.id === "audienceQuery") {
+    state.audienceQuery = event.target.value;
+    renderAudiences();
+    const input = document.getElementById("audienceQuery");
+    if (input) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  }
   if (event.target.id === "identifierValue") state.profileIdentifierValue = event.target.value;
   if (event.target.id === "audiencePrompt") {
     state.audienceBuilderPrompt = event.target.value;
