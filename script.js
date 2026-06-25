@@ -165,9 +165,17 @@ const copy = {
     activation: "Activation",
     criteria: "Criteria",
     updated: "Updated",
-    continueEditing: "Continue edition",
+    continueEditing: "Continue editing",
+    duplicate: "Duplicate",
+    edit: "Edit",
+    archive: "Archive",
+    restore: "Restore",
+    deletePermanently: "Delete permanently",
+    viewDetails: "View details",
+    pause: "Pause",
+    manageActivation: "Manage activation",
     resume: "Resume",
-    resolveIssues: "Resolve Issues",
+    resolveIssues: "Resolve issue",
     viewAudience: "View audience",
     noAudiences: "No audiences match this view",
     profiles: "profiles",
@@ -330,6 +338,14 @@ const copy = {
     criteria: "Criterios",
     updated: "Actualizado",
     continueEditing: "Continuar edicion",
+    duplicate: "Duplicar",
+    edit: "Editar",
+    archive: "Archivar",
+    restore: "Restaurar",
+    deletePermanently: "Eliminar permanentemente",
+    viewDetails: "Ver detalles",
+    pause: "Pausar",
+    manageActivation: "Gestionar activacion",
     resume: "Reanudar",
     resolveIssues: "Resolver incidencias",
     viewAudience: "Ver audiencia",
@@ -438,9 +454,11 @@ function chip(text, tone = "") {
 
 function statusChip(status) {
   if (status === "activated") return chip(state.lang === "en" ? "Active" : "Activado", "success");
+  if (status === "ready") return chip(state.lang === "en" ? "Ready" : "Lista", "success");
   if (status === "deactivated") return chip(state.lang === "en" ? "Inactive" : "Desactivado", "gray");
   if (status === "draft") return chip(state.lang === "en" ? "Draft" : "Borrador", "warning");
   if (status === "paused") return chip(state.lang === "en" ? "Paused" : "Pausada", "paused");
+  if (status === "archived") return chip(state.lang === "en" ? "Archived" : "Archivada", "gray");
   if (status === "error") return chip("Error", "error");
   return chip(status, "gray");
 }
@@ -906,7 +924,7 @@ function audienceSection(title, list, mode, attention = false) {
 }
 
 function audienceCard(a, attention = false) {
-  const action = audienceRowAction(a, true);
+  const action = audiencePrimaryAction(a);
   return `
     <article class="audience-view-card ${attention ? "attention-card" : ""}">
       <div class="audience-card-head">
@@ -914,11 +932,7 @@ function audienceCard(a, attention = false) {
         <div class="audience-card-tools">
           ${statusChip(a.status)}
           <button class="mini" data-toggle-audience-menu="${a.id}" title="More">${icon("more_vert")}</button>
-          ${state.audienceActionMenu === a.id ? `
-            <div class="card-action-menu">
-              <button data-edit-audience="${a.id}">${icon("edit")} ${state.lang === "en" ? "Edit" : "Editar"}</button>
-              <button data-delete-audience="${a.id}">${icon("delete")} ${state.lang === "en" ? "Delete" : "Eliminar"}</button>
-            </div>` : ""}
+          ${audienceActionMenu(a)}
         </div>
       </div>
       <div class="audience-card-metrics">
@@ -973,7 +987,7 @@ function audienceTable(list) {
 
 function audienceTableRow(a) {
   return `
-    <tr class="${a.status === "draft" ? "selected-row" : ""}">
+    <tr>
       <td><strong>${a.name}</strong></td>
       <td>${statusChip(a.status)}</td>
       <td>${a.issue || "&ndash;"}</td>
@@ -981,7 +995,13 @@ function audienceTableRow(a) {
       <td>${a.activation || a.channels.join(", ")}</td>
       <td><span>${criteriaLabel(a)}</span><button class="mini inline-chevron" title="${t("criteria")}">${icon("expand_more")}</button></td>
       <td>${a.updated || a.created}</td>
-      <td><div class="audience-row-actions"><button class="mini" data-toggle-audience-menu="${a.id}" title="More">${icon("more_vert")}</button>${audienceRowAction(a)}</div></td>
+      <td>
+        <div class="audience-row-actions">
+          <button class="mini audience-menu-trigger" data-toggle-audience-menu="${a.id}" title="More">${icon("more_vert")}</button>
+          ${audiencePrimaryAction(a)}
+          ${audienceActionMenu(a)}
+        </div>
+      </td>
     </tr>
   `;
 }
@@ -991,11 +1011,59 @@ function criteriaLabel(a) {
   return `${count} ${count === 1 ? "criteria" : "criteria"}`;
 }
 
-function audienceRowAction(a, compact = false) {
-  if (a.status === "draft") return `<button class="button surface audience-action-pill" data-edit-audience="${a.id}">${icon("edit_square")} ${t("continueEditing")}</button>`;
-  if (a.status === "paused") return `<button class="button success audience-action-pill" data-activate="${a.id}">${icon("play_arrow")} ${t("resume")}</button>`;
-  if (a.status === "error") return `<button class="button error audience-action-pill" data-edit-audience="${a.id}">${icon("warning")} ${t("resolveIssues")}</button>`;
-  return compact ? `<button class="mini audience-eye" data-edit-audience="${a.id}" title="${t("viewAudience")}">${icon("visibility")}</button>` : "";
+function audienceActions(a) {
+  const edit = { label: t("edit"), iconName: "edit", attr: `data-edit-audience="${a.id}"` };
+  const duplicate = { label: t("duplicate"), iconName: "content_copy", attr: `data-duplicate-audience="${a.id}"` };
+  const deleteAction = { label: state.lang === "en" ? "Delete" : "Eliminar", iconName: "delete", attr: `data-delete-audience="${a.id}"`, tone: "danger" };
+  const status = a.status === "activated" ? "active" : a.status;
+  const config = {
+    draft: {
+      main: { label: t("continueEditing"), iconName: "edit_square", attr: `data-edit-audience="${a.id}"`, tone: "surface" },
+      secondary: [deleteAction, duplicate]
+    },
+    ready: {
+      main: { label: t("activate"), iconName: "play_arrow", attr: `data-activate="${a.id}"`, tone: "success" },
+      secondary: [edit]
+    },
+    active: {
+      main: { label: t("viewAudience"), iconName: "visibility", attr: `data-view-audience="${a.id}"`, tone: "surface" },
+      secondary: [
+        { label: t("pause"), iconName: "pause", attr: `data-pause-audience="${a.id}"` },
+        edit,
+        duplicate
+      ]
+    },
+    paused: {
+      main: { label: t("resume"), iconName: "play_arrow", attr: `data-activate="${a.id}"`, tone: "success" },
+      secondary: [edit, { label: t("archive"), iconName: "archive", attr: `data-archive-audience="${a.id}"` }]
+    },
+    error: {
+      main: { label: t("resolveIssues"), iconName: "warning", attr: `data-edit-audience="${a.id}"`, tone: "error" },
+      secondary: [
+        { label: t("viewDetails"), iconName: "info", attr: `data-view-audience="${a.id}"` },
+        edit
+      ]
+    },
+    archived: {
+      main: { label: t("restore"), iconName: "restore", attr: `data-restore-audience="${a.id}"`, tone: "surface" },
+      secondary: [{ label: t("deletePermanently"), iconName: "delete_forever", attr: `data-delete-audience="${a.id}"`, tone: "danger" }]
+    }
+  };
+  return config[status] || config.draft;
+}
+
+function audiencePrimaryAction(a) {
+  const action = audienceActions(a).main;
+  return `<button class="button ${action.tone || "surface"} audience-action-pill" ${action.attr}>${icon(action.iconName)} ${action.label}</button>`;
+}
+
+function audienceActionMenu(a) {
+  if (state.audienceActionMenu !== a.id) return "";
+  return `
+    <div class="card-action-menu">
+      ${audienceActions(a).secondary.map((action) => `<button class="${action.tone === "danger" ? "danger" : ""}" ${action.attr}>${icon(action.iconName)} ${action.label}</button>`).join("")}
+    </div>
+  `;
 }
 
 function renderAggregation() {
@@ -1703,6 +1771,20 @@ document.addEventListener("click", (event) => {
   if (target.dataset.audienceColumns) state.audienceColumns = Number(target.dataset.audienceColumns), state.audienceColumnMenu = false, renderAudiences();
   if (target.dataset.toggleAudienceMenu) state.audienceActionMenu = state.audienceActionMenu === target.dataset.toggleAudienceMenu ? "" : target.dataset.toggleAudienceMenu, renderAudiences();
   if (target.dataset.activate) state.audiences = state.audiences.map((a) => a.id === target.dataset.activate ? { ...a, status: "activated", issue: "", updated: "Jul 8, 2026" } : a), renderAudiences();
+  if (target.dataset.pauseAudience) state.audiences = state.audiences.map((a) => a.id === target.dataset.pauseAudience ? { ...a, status: "paused", issue: "Activation paused", updated: "Jul 8, 2026" } : a), state.audienceActionMenu = "", renderAudiences();
+  if (target.dataset.archiveAudience) state.audiences = state.audiences.map((a) => a.id === target.dataset.archiveAudience ? { ...a, status: "archived", issue: "", updated: "Jul 8, 2026" } : a), state.audienceActionMenu = "", renderAudiences();
+  if (target.dataset.restoreAudience) state.audiences = state.audiences.map((a) => a.id === target.dataset.restoreAudience ? { ...a, status: "draft", issue: "", updated: "Jul 8, 2026" } : a), state.audienceActionMenu = "", renderAudiences();
+  if (target.dataset.duplicateAudience) {
+    const source = state.audiences.find((a) => a.id === target.dataset.duplicateAudience);
+    if (source) state.audiences.unshift({ ...source, id: `aud-${Date.now()}`, name: `${source.name} copy`, status: "draft", issue: "", updated: "Jul 8, 2026" });
+    state.audienceActionMenu = "";
+    renderAudiences();
+  }
+  if (target.dataset.viewAudience) {
+    const audience = state.audiences.find((a) => a.id === target.dataset.viewAudience);
+    state.audienceActionMenu = "";
+    showToast(audience ? `${t("viewAudience")}: ${audience.name}` : t("viewAudience"));
+  }
   if (target.dataset.deleteAudience) state.audiences = state.audiences.filter((a) => a.id !== target.dataset.deleteAudience), state.audienceActionMenu = "", renderAudiences();
   if (target.dataset.editAudience) {
     const audience = state.audiences.find((a) => a.id === target.dataset.editAudience);

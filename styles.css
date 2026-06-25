@@ -961,7 +961,6 @@ tbody tr:hover { background: #fafbff; }
   vertical-align: middle;
   font-size: 13px;
 }
-.audience-table .selected-row td { background: #f3f5fb; }
 .inline-chevron {
   width: 28px;
   min-width: 28px;
@@ -969,11 +968,27 @@ tbody tr:hover { background: #fafbff; }
   margin-left: 10px;
 }
 .audience-row-actions {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
   white-space: nowrap;
+}
+.audience-table .audience-action-pill {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(2px);
+  transition: opacity .14s ease, transform .14s ease, visibility .14s ease;
+}
+.audience-table tr:hover .audience-action-pill,
+.audience-table tr:focus-within .audience-action-pill,
+.audience-table .audience-row-actions:has(.card-action-menu) .audience-action-pill {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 .audience-action-pill {
   min-height: 34px;
@@ -992,6 +1007,13 @@ tbody tr:hover { background: #fafbff; }
 .audience-action-pill.button.error {
   background: #fff0f0;
   color: #c62828;
+}
+.card-action-menu button.danger {
+  color: var(--error);
+}
+.card-action-menu button.danger:hover {
+  background: #fdecea;
+  color: var(--error);
 }
 .audience-card-grid {
   display: grid;
@@ -2031,7 +2053,6 @@ body.dark .audience-tabs,
 body.dark .audience-table-card,
 body.dark .audience-view-card,
 body.dark .audience-field { border-color: var(--line); }
-body.dark .audience-table .selected-row td,
 body.dark .attention-next,
 body.dark .audience-eye,
 body.dark .audience-action-pill.button.surface { background: #20283a; color: var(--text); }
