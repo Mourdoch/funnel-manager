@@ -24,6 +24,7 @@ const state = {
   audienceColumns: Number(urlParams.get("columns") || 4),
   audienceColumnMenu: urlParams.get("columnsMenu") === "1",
   audienceActionMenu: urlParams.get("audienceMenu") || "",
+  aggregationActionMenu: "",
   audienceBuilderBaseFilters: urlParams.get("builderSource") === "profiles" ? ['TUID exists', 'category = customer', 'last_seen > last 30 days'] : [],
   audienceBuilderSource: urlParams.get("builderSource") || "",
   audienceBuilderCriteriaExpanded: urlParams.get("criteriaOpen") === "1",
@@ -636,7 +637,7 @@ function identifierPopup() {
       <input class="input identifier-value" id="identifierValue" value="${escapeAttr(state.profileIdentifierValue)}" placeholder="${t("identifierValuePlaceholder")}" />
       <div class="popover-actions">
         <button class="button text" data-action="close-identifier-menu">${t("cancel")}</button>
-        <button class="button neutral" data-action="apply-identifier-search">${t("search")}</button>
+        <button class="button" data-action="apply-identifier-search">${t("search")}</button>
       </div>
     </div>
   `;
@@ -1073,7 +1074,7 @@ function renderAggregation() {
       <h1>${t("aggregations")}</h1>
       <div class="actions">
         <button class="top-icon" title="Info">${icon("info")}</button>
-        <button class="button surface" data-action="create-aggregation">${icon("add")} ${t("aggregationCreate")}</button>
+        <button class="button" data-action="create-aggregation">${icon("add")} ${t("aggregationCreate")}</button>
       </div>
     </div>
     <div class="toolbar grow">
@@ -1103,7 +1104,13 @@ function aggregationRow(a) {
       <td><div>${a.column}</div><div class="muted" style="margin-top:8px">${a.type}</div></td>
       <td>${a.timeRange}</td>
       <td><div class="filter-row">${a.labels.map((label) => chip(label)).join("")}</div></td>
-      <td><div class="actions">${a.status === "activated" ? `<button class="button error" data-toggle-agg="${a.id}">${icon("stop")} ${t("stop")}</button>` : `<button class="button success" data-toggle-agg="${a.id}" ${a.status === "error" || a.status === "draft" ? "disabled" : ""}>${icon("play_arrow")} ${t("play")}</button>`}<button class="mini" data-delete-agg="${a.id}">${icon("more_horiz")}</button></div></td>
+      <td>
+        <div class="actions aggregation-row-actions">
+          ${a.status === "activated" ? `<button class="button error table-primary-action" data-toggle-agg="${a.id}">${icon("stop")} ${t("stop")}</button>` : `<button class="button success table-primary-action" data-toggle-agg="${a.id}" ${a.status === "error" || a.status === "draft" ? "disabled" : ""}>${icon("play_arrow")} ${t("play")}</button>`}
+          <button class="mini" data-toggle-agg-menu="${a.id}" title="More">${icon("more_horiz")}</button>
+          ${state.aggregationActionMenu === a.id ? `<div class="card-action-menu"><button class="danger" data-delete-agg="${a.id}">${icon("delete")} ${state.lang === "en" ? "Delete" : "Eliminar"}</button></div>` : ""}
+        </div>
+      </td>
     </tr>
   `;
 }
@@ -1507,7 +1514,7 @@ function openAggregationModal() {
           <select class="select" id="aggPeriod"><option>Daily</option><option>Last 7 Days</option><option>Calendar Month</option><option>Snapshot</option></select>
           <input class="input" id="aggTags" placeholder="${t("tagsComma")}" />
         </div>
-        <footer class="modal-footer"><button class="button surface" data-close-modal>${t("cancel")}</button><button class="button" data-save-agg>${t("save")}</button></footer>
+        <footer class="modal-footer"><button class="button text" data-close-modal>${t("cancel")}</button><button class="button" data-save-agg>${t("save")}</button></footer>
       </section>
     </div>
   `;
@@ -1554,7 +1561,7 @@ function openActivateAudienceModal() {
           </label>
         </div>
         <footer class="activate-modal-footer">
-          <button class="button surface" data-close-modal>${t("cancel")}</button>
+          <button class="button text" data-close-modal>${t("cancel")}</button>
           <button class="button" data-action="confirm-activate-audience">${icon("bolt")} ${state.lang === "en" ? "Activate" : "Activar"}</button>
         </footer>
       </section>
@@ -1598,7 +1605,7 @@ function openAudienceResultModal(status, name) {
           <p class="muted">${result.copy}</p>
           ${name ? `<strong>${escapeText(name)}</strong>` : ""}
           <div class="actions">
-            <button class="button surface" data-action="builder-back">${t("backToAudiences")}</button>
+            <button class="button tonal" data-action="builder-back">${t("backToAudiences")}</button>
             <button class="button" data-action="new-audience">${icon("group_add")} ${t("createAnother")}</button>
           </div>
         </div>
@@ -1819,7 +1826,8 @@ document.addEventListener("click", (event) => {
     state.aggregations = state.aggregations.map((a) => a.id === target.dataset.toggleAgg ? { ...a, status: a.status === "activated" ? "deactivated" : "activated" } : a);
     renderAggregation();
   }
-  if (target.dataset.deleteAgg) state.aggregations = state.aggregations.filter((a) => a.id !== target.dataset.deleteAgg), renderAggregation();
+  if (target.dataset.toggleAggMenu) state.aggregationActionMenu = state.aggregationActionMenu === target.dataset.toggleAggMenu ? "" : target.dataset.toggleAggMenu, renderAggregation();
+  if (target.dataset.deleteAgg) state.aggregations = state.aggregations.filter((a) => a.id !== target.dataset.deleteAgg), state.aggregationActionMenu = "", renderAggregation();
 });
 
 document.addEventListener("change", (event) => {

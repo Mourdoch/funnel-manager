@@ -347,6 +347,14 @@ p { margin: 0; }
 .button.success { background: var(--success); }
 .button.error { background: var(--error); }
 .button:disabled { opacity: .45; cursor: not-allowed; }
+.table-card .table-primary-action.button.success {
+  background: #eef8ef;
+  color: var(--success);
+}
+.table-card .table-primary-action.button.error {
+  background: #fff0f0;
+  color: var(--error);
+}
 .toolbar {
   min-height: 52px;
   border-radius: var(--radius);
@@ -813,6 +821,7 @@ tbody tr:hover { background: #fafbff; }
   font-size: var(--text-body-2-size);
 }
 .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.aggregation-row-actions { position: relative; justify-content: flex-end; flex-wrap: nowrap; }
 .mini { min-width: 36px; height: 36px; border-radius: var(--radius); border: 0; background: transparent; color: #4e5560; }
 .mini:hover { background: var(--primary-soft); color: var(--primary); }
 .mini:disabled { opacity: .42; cursor: not-allowed; }
@@ -2124,6 +2133,10 @@ body.dark .advanced-card-subtitle { color: var(--text); opacity: 0.64; }
 }
 
 @media (max-width: 720px) {
+  .topbar { padding: 0 8px; gap: 8px; }
+  .breadcrumbs { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .top-actions { flex: 0 0 auto; gap: 4px; }
+  .top-icon { min-width: 32px; width: 32px; }
   .audience-title-row,
   .audience-head-actions,
   .audience-filter-tools { align-items: stretch; flex-direction: column; }
