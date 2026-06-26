@@ -41,6 +41,13 @@ const state = {
   audienceBuilderEstimateDirty: false,
   audienceBuilderLastEstimatedPrompt: "",
   audienceBuilderChannels: [],
+  audienceBuilderActivationTypes: {},
+  activationTypeDialog: "",
+  activationTypeDraft: "",
+  activationAudienceName: "",
+  activationFrequency: "",
+  activationDateMode: "today",
+  activationOtherDate: "",
   audienceBuilderResult: null,
   lastAudienceName: "",
   audiences: [
@@ -1128,6 +1135,13 @@ function openAudienceBuilder(baseFilters = [], source = "") {
   state.audienceBuilderStep = "compose";
   state.audienceBuilderResult = null;
   state.audienceBuilderChannels = [];
+  state.audienceBuilderActivationTypes = {};
+  state.activationTypeDialog = "";
+  state.activationTypeDraft = "";
+  state.activationAudienceName = "";
+  state.activationFrequency = "";
+  state.activationDateMode = "today";
+  state.activationOtherDate = "";
   state.lastAudienceName = "";
   routeTo("audienceBuilder");
 }
@@ -1141,7 +1155,9 @@ function renderAudienceBuilder() {
   const hasStartingAudience = state.audienceBuilderSource === "profiles" && state.audienceBuilderBaseFilters.length > 0;
   const canEstimate = state.audienceBuilderPrompt.trim().length > 0 || hasConditions;
   const showBuilderEmptyState = !hasStartingAudience && !hasConditions;
-  const canActivate = hasConditions && state.audienceBuilderChannels.length === 1 && !state.audienceBuilderEstimateDirty;
+  const selectedActivation = activationOptionById(state.audienceBuilderChannels[0]);
+  const hasActivationType = !selectedActivation?.types?.length || Boolean(state.audienceBuilderActivationTypes[selectedActivation.id]);
+  const canActivate = hasConditions && state.audienceBuilderChannels.length === 1 && hasActivationType && !state.audienceBuilderEstimateDirty;
   const cancelLabel = state.audienceBuilderSource === "profiles" ? (state.lang === "en" ? "Cancel & back" : "Cancelar y volver") : t("cancel");
   view.innerHTML = `
     <section class="audience-builder-page exact">
@@ -1272,10 +1288,7 @@ function renderEstimatedAudienceCard({ includeStartingAudience }) {
       <div class="progress retained-progress"><span style="width:${retained}%"></span></div>
       <p class="muted">${comparison}</p>
       ${includeStartingAudience ? collapsedStartingRow() : ""}
-      <details class="split-expander">
-        <summary><span>Audience breakdowns</span>${icon("expand_more")}</summary>
-        ${compactBreakdowns("tiles")}
-      </details>
+      ${audienceBreakdownPanel()}
     </article>
   `;
 }
@@ -1294,6 +1307,20 @@ function collapsedStartingRow() {
 
 function compactBreakdowns(mode = "tiles") {
   return `<div class="variant-breakdowns ${mode}">${audienceBreakdownData().map((item) => breakdownChart(item, "compact")).join("")}</div>`;
+}
+
+function audienceBreakdownPanel() {
+  return `
+    <section class="audience-breakdown-panel">
+      <header>
+        <strong>Audience breakdowns</strong>
+        ${icon("chevron_right")}
+      </header>
+      <div class="audience-breakdown-grid">
+        ${audienceBreakdownData().map((item) => breakdownChart(item, "pie")).join("")}
+      </div>
+    </section>
+  `;
 }
 
 function basePopulationCount() {
@@ -1394,13 +1421,41 @@ function renderEstimationCard() {
 
 function audienceBreakdownData() {
   return [
-    { title: "Device split", rows: [["Android", 54, "blue"], ["iOS", 46, "teal"]] },
-    { title: "Region split", rows: [["North", 38, "blue"], ["Central", 34, "teal"], ["South", 28, "slate"]] },
-    { title: "Interest split", rows: [["Devices", 42, "blue"], ["Tariffs", 31, "teal"], ["Entertainment", 27, "slate"]] }
+    { title: "Region split", rows: [["North", 42, "purple"], ["Central", 33, "navy"], ["South", 25, "blue"]] },
+    { title: "Device split", rows: [["Android", 48, "purple"], ["iOS", 52, "navy"]] },
+    { title: "Interest split", rows: [["Devices", 43, "purple"], ["Tariffs", 31, "navy"], ["Entertainment", 26, "blue"]] }
   ];
 }
 
+function breakdownToneColor(tone) {
+  return {
+    purple: "#7c3df2",
+    navy: "#303a96",
+    blue: "#2d9bf0",
+    teal: "#2bb8a8",
+    slate: "#8f9bb8"
+  }[tone] || "#7c3df2";
+}
+
 function breakdownChart(item, variant = "default") {
+  if (variant === "pie") {
+    let start = 0;
+    const gradient = item.rows.map(([, value, tone]) => {
+      const end = start + value;
+      const segment = `${breakdownToneColor(tone)} ${start}% ${end}%`;
+      start = end;
+      return segment;
+    }).join(", ");
+    return `
+      <article class="breakdown-pie-card">
+        <h4>${item.title}</h4>
+        <div class="breakdown-pie" style="background: conic-gradient(${gradient})" aria-label="${escapeAttr(item.title)}"></div>
+        <div class="breakdown-pie-legend">
+          ${item.rows.map(([label, value, tone]) => `<span><i class="${tone}"></i>${label}</span>`).join("")}
+        </div>
+      </article>
+    `;
+  }
   let offset = 0;
   const segments = item.rows.map(([label, value, tone]) => {
     const style = `left:${offset}%;width:${value}%`;
@@ -1425,25 +1480,57 @@ function breakdownChart(item, variant = "default") {
 
 function activationOptions() {
   return [
-    { id: "Email", title: "Email", icon: "mail", copy: state.lang === "en" ? "Activate the final audience for lifecycle campaigns." : "Activa la audiencia final para campanas de ciclo de vida." },
-    { id: "SMS", title: "SMS", icon: "sms", copy: state.lang === "en" ? "Send the final audience to SMS journeys." : "Envia la audiencia final a journeys SMS." },
-    { id: "Push", title: "Push", icon: "notifications_active", copy: state.lang === "en" ? "Use the final audience for app and web push." : "Usa la audiencia final para push de app y web." },
-    { id: "Export", title: "Export", icon: "download", copy: state.lang === "en" ? "Export the final audience for external activation." : "Exporta la audiencia final para activacion externa." }
+    {
+      id: "inline",
+      title: "Inline Campaign",
+      subtitle: "Profile Attribute",
+      icon: "notifications_none",
+      copy: "Tagged on user profiles for real-time use by FunnelConnect.",
+      types: ["Attribute 1", "Attribute 2", "Attribute 3", "Attribute 4", "Attribute 5", "Attribute 6"]
+    },
+    {
+      id: "paid",
+      title: "Paid Media",
+      subtitle: "CM360, DV360, GA360, Google Ads, Meta",
+      icon: "sms",
+      copy: "Exported as a file to your selected advertising platform.",
+      types: ["Google Campaign Manager 360", "Display & Video 360", "Google Ads", "Meta"]
+    },
+    {
+      id: "app_push",
+      title: "App Push",
+      subtitle: "Airship, 2Scale",
+      icon: "download_for_offline",
+      copy: "Reaches users via push notifications on their mobile app.",
+      types: ["Airship", "2Scale"]
+    },
+    {
+      id: "messaging",
+      title: "Messaging",
+      subtitle: "Cheetah (Email/SMS)",
+      icon: "mark_email_unread",
+      copy: "Triggers email or SMS through your messaging platform."
+    }
   ];
+}
+
+function activationOptionById(id) {
+  return activationOptions().find((option) => option.id === id);
 }
 
 function activationCard(option) {
   const selected = state.audienceBuilderChannels.includes(option.id);
+  const selectedType = state.audienceBuilderActivationTypes[option.id];
   return `
-    <button class="activation-card ${selected ? "selected" : ""}" data-activation-channel="${option.id}">
+    <button class="activation-card ${selected ? "selected" : ""} ${selectedType ? "has-type" : ""}" data-activation-channel="${option.id}">
       <span class="activation-content">
         <span class="activation-card-head">
           <span class="activation-avatar">${icon(option.icon)}</span>
-          <span><strong>${option.title}</strong><small>${option.id}</small></span>
+          <span><strong>${option.title}</strong><small>${option.subtitle}</small></span>
         </span>
-        <span class="activation-copy">${option.copy}</span>
+        ${selectedType ? `<span class="activation-type-chip">${icon("check")} ${escapeText(selectedType)}</span>` : `<span class="activation-copy">${option.copy}</span>`}
       </span>
-      <span class="activation-check">${icon(selected ? "check_circle" : "radio_button_unchecked")}</span>
+      <span class="activation-check">${icon(selected ? "radio_button_checked" : "radio_button_unchecked")}</span>
     </button>
   `;
 }
@@ -1541,28 +1628,123 @@ function defaultAudienceName() {
   return titleCase(state.audienceBuilderPrompt || state.audienceBuilderSelectedPrompts[0] || t("newAudience")).slice(0, 80);
 }
 
-function openActivateAudienceModal() {
-  const name = defaultAudienceName();
+function openActivationTypeDialog(channelId) {
+  const option = activationOptionById(channelId);
+  if (!option) return;
+  if (!option.types?.length) {
+    selectActivationChannel(channelId);
+    return;
+  }
+  state.activationTypeDialog = channelId;
+  state.activationTypeDraft = state.audienceBuilderActivationTypes[channelId] || option.types[0];
   modalRoot.innerHTML = `
-    <div class="modal-backdrop activate-backdrop">
-      <section class="modal activate-modal" role="dialog" aria-modal="true" aria-label="${state.lang === "en" ? "Activate Audience" : "Activar audiencia"}">
-        <header class="activate-modal-header">
-          <div>
-            <h2>${state.lang === "en" ? "Activate Audience" : "Activar audiencia"}</h2>
-            <p class="muted">${state.lang === "en" ? "Give your audience a name before activating." : "Dale un nombre a tu audiencia antes de activarla."}</p>
-          </div>
-          <button class="close activate-close" data-close-modal aria-label="${t("cancel")}">${icon("close")}</button>
+    <div class="modal-backdrop activation-type-backdrop">
+      <section class="modal activation-type-modal" role="dialog" aria-modal="true" aria-label="Activation type for ${escapeAttr(option.title)}">
+        <header class="modal-header activation-type-header">
+          <h2>Activation type for "${escapeText(option.title)}"</h2>
+          <button class="close" data-action="close-activation-type-dialog" aria-label="${t("cancel")}">${icon("close")}</button>
         </header>
-        <div class="activate-modal-body">
-          <label class="activate-name-field">
+        <div class="modal-body activation-type-body">
+          <div class="activation-type-options">
+            ${option.types.map((type) => `
+              <button class="activation-type-option ${state.activationTypeDraft === type ? "selected" : ""}" data-activation-type-option="${escapeAttr(type)}">
+                ${icon(state.activationTypeDraft === type ? "radio_button_checked" : "radio_button_unchecked")}
+                <span>${escapeText(type)}</span>
+              </button>
+            `).join("")}
+          </div>
+        </div>
+        <footer class="modal-footer activation-type-footer">
+          <button class="button text" data-action="close-activation-type-dialog">${t("cancel")}</button>
+          <button class="button" data-action="confirm-activation-type">Use activation</button>
+        </footer>
+      </section>
+    </div>
+  `;
+}
+
+function openSaveDraftAudienceModal() {
+  const name = state.activationAudienceName || defaultAudienceName();
+  state.activationAudienceName = name;
+  modalRoot.innerHTML = `
+    <div class="modal-backdrop audience-builder-dialog-backdrop">
+      <section class="modal audience-builder-dialog" role="dialog" aria-modal="true" aria-label="${state.lang === "en" ? "Audience saved as Draft" : "Audiencia guardada como draft"}">
+        <header class="modal-header audience-builder-dialog-header">
+          <h2>${state.lang === "en" ? "Audience saved as Draft" : "Audience saved as Draft"}</h2>
+          <button class="close" data-close-modal aria-label="${t("cancel")}">${icon("close")}</button>
+        </header>
+        <div class="modal-body audience-builder-dialog-body">
+          <p class="muted">${state.lang === "en" ? "You can explore and edit this audience later in Audience Viewer." : "Puedes explorar y editar esta audiencia luego en Audience Viewer."}</p>
+          <label class="builder-dialog-field">
             <span>${t("audienceName")}</span>
             <input class="input" id="audienceName" maxlength="80" value="${escapeAttr(name)}" />
             <small id="audienceNameCounter">${name.length}/80</small>
           </label>
         </div>
+        <footer class="modal-footer audience-builder-dialog-footer">
+          <button class="button text" data-close-modal>${t("cancel")}</button>
+          <button class="button" data-action="confirm-save-audience-draft">${state.lang === "en" ? "Save as Draft" : "Guardar como Draft"}</button>
+        </footer>
+      </section>
+    </div>
+  `;
+}
+
+function openActivateAudienceModal() {
+  const name = state.activationAudienceName || defaultAudienceName();
+  state.activationAudienceName = name;
+  const showRecurringFrequency = state.activationFrequency && state.activationFrequency !== "Once";
+  const showOnceDate = state.activationFrequency === "Once";
+  modalRoot.innerHTML = `
+    <div class="modal-backdrop activate-backdrop">
+      <section class="modal activate-modal audience-builder-dialog" role="dialog" aria-modal="true" aria-label="${state.lang === "en" ? "Activate Audience" : "Activar audiencia"}">
+        <header class="activate-modal-header">
+          <div>
+            <h2>${state.lang === "en" ? "Activate the Audience" : "Activar la audiencia"}</h2>
+            <p class="muted">${state.lang === "en" ? "First step. Set the name and the frequency of the audience before the activation." : "Primer paso. Define el nombre y la frecuencia de la audiencia antes de activarla."}</p>
+          </div>
+          <button class="close activate-close" data-close-modal aria-label="${t("cancel")}">${icon("close")}</button>
+        </header>
+        <div class="activate-modal-body">
+          <label class="builder-dialog-field">
+            <span>${t("audienceName")}</span>
+            <input class="input" id="audienceName" maxlength="80" value="${escapeAttr(name)}" />
+            <small id="audienceNameCounter">${name.length}/80</small>
+          </label>
+          <label class="builder-dialog-field">
+            <span>Refresh frequency</span>
+            <select class="select" id="activationFrequency">
+              <option value="">Refresh frequency</option>
+              ${["Once", "Hourly", "Daily", "Weekly", "Monthly"].map((item) => `<option value="${item}" ${state.activationFrequency === item ? "selected" : ""}>${item}</option>`).join("")}
+            </select>
+            <small>Choose how often this audience should refresh.</small>
+          </label>
+          ${showRecurringFrequency ? `
+            <label class="builder-dialog-field">
+              <span>Audience frequency</span>
+              <select class="select" id="activationFrequencyWindow">
+                <option>Every refresh</option>
+                <option>First refresh of the day</option>
+                <option>Business days only</option>
+              </select>
+            </label>
+          ` : ""}
+          ${showOnceDate ? `
+            <div class="activation-date-options">
+              <button class="activation-date-choice ${state.activationDateMode === "today" ? "selected" : ""}" data-activation-date-mode="today">${icon(state.activationDateMode === "today" ? "radio_button_checked" : "radio_button_unchecked")} Today</button>
+              <button class="activation-date-choice ${state.activationDateMode === "other" ? "selected" : ""}" data-activation-date-mode="other">${icon(state.activationDateMode === "other" ? "radio_button_checked" : "radio_button_unchecked")} Other date</button>
+            </div>
+            ${state.activationDateMode === "other" ? `
+              <label class="builder-dialog-field">
+                <span>Date</span>
+                <input class="input" id="activationOtherDate" type="date" value="${escapeAttr(state.activationOtherDate)}" />
+              </label>
+            ` : ""}
+          ` : ""}
+        </div>
         <footer class="activate-modal-footer">
           <button class="button text" data-close-modal>${t("cancel")}</button>
-          <button class="button" data-action="confirm-activate-audience">${icon("bolt")} ${state.lang === "en" ? "Activate" : "Activar"}</button>
+          <button class="button" data-action="confirm-activate-audience" ${state.activationFrequency ? "" : "disabled"}>${state.lang === "en" ? "Activate Audience" : "Activar audiencia"}</button>
         </footer>
       </section>
     </div>
@@ -1571,18 +1753,19 @@ function openActivateAudienceModal() {
 
 function cancelAudienceFlow() {
   modalRoot.innerHTML = `
-    <div class="modal-backdrop">
-      <section class="modal result-modal warning" role="dialog" aria-modal="true">
-        <button class="close result-close" data-close-modal>&times;</button>
-        <div class="modal-result-body">
-          <div class="result-icon">${icon("warning")}</div>
+    <div class="modal-backdrop audience-builder-dialog-backdrop">
+      <section class="modal audience-builder-dialog" role="dialog" aria-modal="true">
+        <header class="modal-header audience-builder-dialog-header">
           <h2>${state.lang === "en" ? "Abandon audience builder?" : "Abandonar Audience Builder?"}</h2>
+          <button class="close" data-close-modal aria-label="${t("cancel")}">${icon("close")}</button>
+        </header>
+        <div class="modal-body audience-builder-dialog-body">
           <p class="muted">${state.lang === "en" ? "Your current audience definition progress will be discarded." : "Se descartara el avance realizado en la definicion de audiencia."}</p>
-          <div class="actions">
-            <button class="button text" data-close-modal>${state.lang === "en" ? "Keep editing" : "Seguir editando"}</button>
-            <button class="button" data-action="confirm-cancel-audience">${state.audienceBuilderSource === "profiles" ? (state.lang === "en" ? "Cancel & back" : "Cancelar y volver") : t("cancel")}</button>
-          </div>
         </div>
+        <footer class="modal-footer audience-builder-dialog-footer">
+          <button class="button text" data-close-modal>${state.lang === "en" ? "Keep editing" : "Seguir editando"}</button>
+          <button class="button" data-action="confirm-cancel-audience">${state.audienceBuilderSource === "profiles" ? (state.lang === "en" ? "Cancel" : "Cancelar") : t("cancel")}</button>
+        </footer>
       </section>
     </div>
   `;
@@ -1614,8 +1797,9 @@ function openAudienceResultModal(status, name) {
   `;
 }
 
-function toggleActivationChannel(channel) {
+function selectActivationChannel(channel, activationType = "") {
   state.audienceBuilderChannels = [channel];
+  state.audienceBuilderActivationTypes = activationType ? { [channel]: activationType } : {};
   renderAudienceBuilder();
 }
 
@@ -1676,10 +1860,31 @@ document.addEventListener("click", (event) => {
   if (target.dataset.action === "generate-audience-page" || target.dataset.action === "run-estimation") showAudienceReview();
   if (target.dataset.action === "cancel-audience-flow") cancelAudienceFlow();
   if (target.dataset.action === "confirm-cancel-audience") closeModal(), routeTo(state.audienceBuilderSource === "profiles" ? "profiles" : "audiences");
-  if (target.dataset.action === "save-audience-draft") saveAudience("draft");
+  if (target.dataset.action === "save-audience-draft") openSaveDraftAudienceModal();
+  if (target.dataset.action === "confirm-save-audience-draft") saveAudience("draft");
   if (target.dataset.action === "activate-audience-flow") openActivateAudienceModal();
   if (target.dataset.action === "confirm-activate-audience") saveAudience("activated");
-  if (target.dataset.activationChannel) toggleActivationChannel(target.dataset.activationChannel);
+  if (target.dataset.activationChannel) openActivationTypeDialog(target.dataset.activationChannel);
+  if (target.dataset.activationTypeOption) {
+    state.activationTypeDraft = target.dataset.activationTypeOption;
+    openActivationTypeDialog(state.activationTypeDialog);
+  }
+  if (target.dataset.action === "close-activation-type-dialog") {
+    state.activationTypeDialog = "";
+    state.activationTypeDraft = "";
+    closeModal();
+  }
+  if (target.dataset.action === "confirm-activation-type") {
+    const channel = state.activationTypeDialog;
+    if (channel) selectActivationChannel(channel, state.activationTypeDraft);
+    state.activationTypeDialog = "";
+    state.activationTypeDraft = "";
+    closeModal();
+  }
+  if (target.dataset.activationDateMode) {
+    state.activationDateMode = target.dataset.activationDateMode;
+    openActivateAudienceModal();
+  }
   if (target.dataset.action === "create-audience-from-profile") openAudienceBuilder(currentBaseFilters(), "profiles");
   if (target.dataset.action === "toggle-builder-criteria") state.audienceBuilderCriteriaExpanded = !state.audienceBuilderCriteriaExpanded, renderAudienceBuilder();
   if (target.dataset.action === "add-audience-condition") state.audienceBuilderConditions = [...state.audienceBuilderConditions, { field: "behavioral category", operator: "contains", value: "new interest" }], state.audienceBuilderEstimateDirty = true, renderAudienceBuilder();
@@ -1854,6 +2059,11 @@ document.addEventListener("change", (event) => {
     state.audienceSort = event.target.value;
     renderAudiences();
   }
+  if (event.target.id === "activationFrequency") {
+    state.activationFrequency = event.target.value;
+    if (state.activationFrequency !== "Once") state.activationDateMode = "today";
+    openActivateAudienceModal();
+  }
 });
 
 document.addEventListener("input", (event) => {
@@ -1883,9 +2093,11 @@ document.addEventListener("input", (event) => {
     document.querySelectorAll("[data-action='activate-audience-flow']").forEach((item) => item.disabled = true);
   }
   if (event.target.id === "audienceName") {
+    state.activationAudienceName = event.target.value;
     const counter = document.getElementById("audienceNameCounter");
     if (counter) counter.textContent = `${event.target.value.length}/80`;
   }
+  if (event.target.id === "activationOtherDate") state.activationOtherDate = event.target.value;
   if (event.target.dataset.conditionValue !== undefined) {
     state.audienceBuilderConditions[Number(event.target.dataset.conditionValue)].value = event.target.value;
     state.audienceBuilderEstimateDirty = true;
