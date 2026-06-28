@@ -40,6 +40,7 @@ const state = {
   ] : [],
   audienceBuilderEstimateDirty: false,
   audienceBuilderLastEstimatedPrompt: "",
+  audienceBreakdownExpanded: true,
   audienceBuilderChannels: [],
   audienceBuilderActivationTypes: {},
   activationTypeDialog: "",
@@ -48,6 +49,8 @@ const state = {
   activationFrequency: "",
   activationDateMode: "today",
   activationOtherDate: "",
+  activationRangeStart: "",
+  activationRangeEnd: "",
   audienceBuilderResult: null,
   lastAudienceName: "",
   audiences: [
@@ -1132,6 +1135,7 @@ function openAudienceBuilder(baseFilters = [], source = "") {
   state.audienceBuilderConditions = [];
   state.audienceBuilderEstimateDirty = false;
   state.audienceBuilderLastEstimatedPrompt = "";
+  state.audienceBreakdownExpanded = true;
   state.audienceBuilderStep = "compose";
   state.audienceBuilderResult = null;
   state.audienceBuilderChannels = [];
@@ -1142,6 +1146,8 @@ function openAudienceBuilder(baseFilters = [], source = "") {
   state.activationFrequency = "";
   state.activationDateMode = "today";
   state.activationOtherDate = "";
+  state.activationRangeStart = "";
+  state.activationRangeEnd = "";
   state.lastAudienceName = "";
   routeTo("audienceBuilder");
 }
@@ -1310,15 +1316,16 @@ function compactBreakdowns(mode = "tiles") {
 }
 
 function audienceBreakdownPanel() {
+  const expanded = state.audienceBreakdownExpanded;
   return `
-    <section class="audience-breakdown-panel">
-      <header>
+    <section class="audience-breakdown-panel ${expanded ? "expanded" : "collapsed"}">
+      <button class="audience-breakdown-toggle" data-action="toggle-audience-breakdown" aria-expanded="${expanded}">
         <strong>Audience breakdowns</strong>
-        ${icon("chevron_right")}
-      </header>
-      <div class="audience-breakdown-grid">
+        ${icon(expanded ? "expand_less" : "chevron_right")}
+      </button>
+      ${expanded ? `<div class="audience-breakdown-grid">
         ${audienceBreakdownData().map((item) => breakdownChart(item, "pie")).join("")}
-      </div>
+      </div>` : ""}
     </section>
   `;
 }
@@ -1420,11 +1427,51 @@ function renderEstimationCard() {
 }
 
 function audienceBreakdownData() {
+  const estimated = finalAudienceCount();
+  const prompt = state.audienceBuilderPrompt.toLowerCase();
+  const conditionText = state.audienceBuilderConditions.map((item) => `${item.field} ${item.operator} ${item.value}`).join(" ").toLowerCase();
+  const selectedChannel = state.audienceBuilderChannels[0] || "";
+  const seed = estimated + prompt.length * 17 + conditionText.length * 11 + selectedChannel.length * 23;
+  const androidSignal = /android/.test(prompt + conditionText);
+  const iosSignal = /\bios\b|iphone|ipad/.test(prompt + conditionText);
+  const regionSignal = /region|north|central|south|regiones/.test(prompt + conditionText);
+  const deviceSignal = /device|android|ios|mobile|dispositivo/.test(prompt + conditionText);
+  const interestSignal = /device|tariff|entertainment|bundle|interest|devices|tariffs/.test(prompt + conditionText);
+  const north = clampPercent(30 + (seed % 19) + (regionSignal ? 6 : 0), 24, 58);
+  const central = clampPercent(28 + ((seed >> 2) % 17), 22, 46);
+  const south = Math.max(8, 100 - north - central);
+  const android = clampPercent(42 + ((seed >> 3) % 21) + (androidSignal ? 10 : 0) - (iosSignal ? 8 : 0) + (deviceSignal ? 3 : 0), 24, 76);
+  const ios = 100 - android;
+  const devices = clampPercent(34 + ((seed >> 4) % 17) + (deviceSignal ? 10 : 0), 20, 64);
+  const tariffs = clampPercent(26 + ((seed >> 5) % 15), 18, 50);
+  const entertainment = Math.max(8, 100 - devices - tariffs + (interestSignal ? 0 : 4));
+  const normalizedInterest = normalizeRows([
+    ["Devices", devices, "purple"],
+    ["Tariffs", tariffs, "navy"],
+    ["Entertainment", entertainment, "blue"]
+  ]);
   return [
-    { title: "Region split", rows: [["North", 42, "purple"], ["Central", 33, "navy"], ["South", 25, "blue"]] },
-    { title: "Device split", rows: [["Android", 48, "purple"], ["iOS", 52, "navy"]] },
-    { title: "Interest split", rows: [["Devices", 43, "purple"], ["Tariffs", 31, "navy"], ["Entertainment", 26, "blue"]] }
+    { title: "Region split", rows: normalizeRows([["North", north, "purple"], ["Central", central, "navy"], ["South", south, "blue"]]) },
+    { title: "Device split", rows: [["Android", android, "purple"], ["iOS", ios, "navy"]] },
+    { title: "Interest split", rows: normalizedInterest }
   ];
+}
+
+function clampPercent(value, min, max) {
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function normalizeRows(rows) {
+  const total = rows.reduce((sum, [, value]) => sum + value, 0) || 100;
+  const normalized = rows.map(([label, value, tone]) => [label, Math.max(1, Math.round((value / total) * 100)), tone]);
+  const difference = 100 - normalized.reduce((sum, [, value]) => sum + value, 0);
+  normalized[normalized.length - 1][1] += difference;
+  if (normalized[normalized.length - 1][1] < 1) {
+    const shortfall = 1 - normalized[normalized.length - 1][1];
+    normalized[normalized.length - 1][1] = 1;
+    normalized[0][1] = Math.max(1, normalized[0][1] - shortfall);
+  }
+  return normalized;
 }
 
 function breakdownToneColor(tone) {
@@ -1612,7 +1659,7 @@ function saveAudience(status) {
   const name = (nameInput ? nameInput.value.trim() : "") || titleCase(state.audienceBuilderPrompt || t("newAudience"));
   const filters = state.audienceBuilderConditions.length ? state.audienceBuilderConditions.map((c) => `${c.field} ${c.operator} ${c.value}`) : deriveFilters(name);
   const selectedChannels = state.audienceBuilderChannels.length ? state.audienceBuilderChannels : [];
-  state.audiences.unshift({ id: `aud-${Date.now()}`, name, count: finalAudienceCount(), status, filters, channels: selectedChannels, created: "Jun 4, 2026" });
+  state.audiences.unshift({ id: `aud-${Date.now()}`, name, count: finalAudienceCount(), status, filters, channels: selectedChannels, schedule: activationScheduleSummary(), created: "Jun 4, 2026" });
   state.lastAudienceName = name;
   if (status === "activated") {
     closeModal();
@@ -1628,6 +1675,46 @@ function defaultAudienceName() {
   return titleCase(state.audienceBuilderPrompt || state.audienceBuilderSelectedPrompts[0] || t("newAudience")).slice(0, 80);
 }
 
+function todayIso() {
+  const date = new Date();
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+function addDaysIso(days) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+function activationFrequencyOptions() {
+  return [
+    { value: "Once", label: "Once", hint: "Runs only once" },
+    { value: "Every 15 minutes", label: "Every 15 minutes", hint: "4 times per hour" },
+    { value: "Hourly", label: "Hourly", hint: "Once every hour" },
+    { value: "Every 6 hours", label: "Every 6 hours", hint: "4 times per day" },
+    { value: "Daily", label: "Daily", hint: "Once per day" },
+    { value: "Weekly", label: "Weekly", hint: "Once per week" },
+    { value: "Monthly", label: "Monthly", hint: "Once per month" }
+  ];
+}
+
+function usesAudienceRange() {
+  return Boolean(state.activationFrequency && state.activationFrequency !== "Once");
+}
+
+function activationScheduleReady() {
+  if (!state.activationFrequency) return false;
+  if (usesAudienceRange()) return Boolean(state.activationRangeStart && state.activationRangeEnd && state.activationRangeEnd >= state.activationRangeStart);
+  if (state.activationDateMode === "other") return Boolean(state.activationOtherDate);
+  return true;
+}
+
+function activationScheduleSummary() {
+  if (!state.activationFrequency) return null;
+  if (usesAudienceRange()) return { frequency: state.activationFrequency, rangeStart: state.activationRangeStart, rangeEnd: state.activationRangeEnd };
+  return { frequency: state.activationFrequency, date: state.activationDateMode === "today" ? todayIso() : state.activationOtherDate };
+}
+
 function openActivationTypeDialog(channelId) {
   const option = activationOptionById(channelId);
   if (!option) return;
@@ -1635,8 +1722,9 @@ function openActivationTypeDialog(channelId) {
     selectActivationChannel(channelId);
     return;
   }
+  const existingDraft = state.activationTypeDialog === channelId ? state.activationTypeDraft : "";
   state.activationTypeDialog = channelId;
-  state.activationTypeDraft = state.audienceBuilderActivationTypes[channelId] || option.types[0];
+  state.activationTypeDraft = existingDraft || state.audienceBuilderActivationTypes[channelId] || option.types[0];
   modalRoot.innerHTML = `
     <div class="modal-backdrop activation-type-backdrop">
       <section class="modal activation-type-modal" role="dialog" aria-modal="true" aria-label="Activation type for ${escapeAttr(option.title)}">
@@ -1645,9 +1733,9 @@ function openActivationTypeDialog(channelId) {
           <button class="close" data-action="close-activation-type-dialog" aria-label="${t("cancel")}">${icon("close")}</button>
         </header>
         <div class="modal-body activation-type-body">
-          <div class="activation-type-options">
+          <div class="activation-type-options" role="radiogroup" aria-label="Activation type">
             ${option.types.map((type) => `
-              <button class="activation-type-option ${state.activationTypeDraft === type ? "selected" : ""}" data-activation-type-option="${escapeAttr(type)}">
+              <button class="activation-type-option ${state.activationTypeDraft === type ? "selected" : ""}" data-activation-type-option="${escapeAttr(type)}" role="radio" aria-checked="${state.activationTypeDraft === type}">
                 ${icon(state.activationTypeDraft === type ? "radio_button_checked" : "radio_button_unchecked")}
                 <span>${escapeText(type)}</span>
               </button>
@@ -1693,8 +1781,9 @@ function openSaveDraftAudienceModal() {
 function openActivateAudienceModal() {
   const name = state.activationAudienceName || defaultAudienceName();
   state.activationAudienceName = name;
-  const showRecurringFrequency = state.activationFrequency && state.activationFrequency !== "Once";
   const showOnceDate = state.activationFrequency === "Once";
+  const showAudienceRange = usesAudienceRange();
+  const canActivate = activationScheduleReady();
   modalRoot.innerHTML = `
     <div class="modal-backdrop activate-backdrop">
       <section class="modal activate-modal audience-builder-dialog" role="dialog" aria-modal="true" aria-label="${state.lang === "en" ? "Activate Audience" : "Activar audiencia"}">
@@ -1715,24 +1804,30 @@ function openActivateAudienceModal() {
             <span>Refresh frequency</span>
             <select class="select" id="activationFrequency">
               <option value="">Refresh frequency</option>
-              ${["Once", "Hourly", "Daily", "Weekly", "Monthly"].map((item) => `<option value="${item}" ${state.activationFrequency === item ? "selected" : ""}>${item}</option>`).join("")}
+              ${activationFrequencyOptions().map((item) => `<option value="${escapeAttr(item.value)}" ${state.activationFrequency === item.value ? "selected" : ""}>${item.label} (${item.hint})</option>`).join("")}
             </select>
             <small>Choose how often this audience should refresh.</small>
           </label>
-          ${showRecurringFrequency ? `
-            <label class="builder-dialog-field">
-              <span>Audience frequency</span>
-              <select class="select" id="activationFrequencyWindow">
-                <option>Every refresh</option>
-                <option>First refresh of the day</option>
-                <option>Business days only</option>
-              </select>
-            </label>
+          ${showAudienceRange ? `
+            <fieldset class="builder-dialog-field audience-range-field">
+              <legend>Audience range</legend>
+              <div class="audience-range-inputs">
+                <label>
+                  <span>Start date</span>
+                  <input class="input" id="activationRangeStart" type="date" value="${escapeAttr(state.activationRangeStart)}" />
+                </label>
+                <label>
+                  <span>End date</span>
+                  <input class="input" id="activationRangeEnd" type="date" value="${escapeAttr(state.activationRangeEnd)}" min="${escapeAttr(state.activationRangeStart)}" />
+                </label>
+              </div>
+              <small>Select the active range for recurring audience refreshes.</small>
+            </fieldset>
           ` : ""}
           ${showOnceDate ? `
-            <div class="activation-date-options">
-              <button class="activation-date-choice ${state.activationDateMode === "today" ? "selected" : ""}" data-activation-date-mode="today">${icon(state.activationDateMode === "today" ? "radio_button_checked" : "radio_button_unchecked")} Today</button>
-              <button class="activation-date-choice ${state.activationDateMode === "other" ? "selected" : ""}" data-activation-date-mode="other">${icon(state.activationDateMode === "other" ? "radio_button_checked" : "radio_button_unchecked")} Other date</button>
+            <div class="activation-date-options" role="radiogroup" aria-label="Activation date">
+              <button class="activation-date-choice ${state.activationDateMode === "today" ? "selected" : ""}" data-activation-date-mode="today" role="radio" aria-checked="${state.activationDateMode === "today"}">${icon(state.activationDateMode === "today" ? "radio_button_checked" : "radio_button_unchecked")} Today</button>
+              <button class="activation-date-choice ${state.activationDateMode === "other" ? "selected" : ""}" data-activation-date-mode="other" role="radio" aria-checked="${state.activationDateMode === "other"}">${icon(state.activationDateMode === "other" ? "radio_button_checked" : "radio_button_unchecked")} Other date</button>
             </div>
             ${state.activationDateMode === "other" ? `
               <label class="builder-dialog-field">
@@ -1744,7 +1839,7 @@ function openActivateAudienceModal() {
         </div>
         <footer class="activate-modal-footer">
           <button class="button text" data-close-modal>${t("cancel")}</button>
-          <button class="button" data-action="confirm-activate-audience" ${state.activationFrequency ? "" : "disabled"}>${state.lang === "en" ? "Activate Audience" : "Activar audiencia"}</button>
+          <button class="button" data-action="confirm-activate-audience" ${canActivate ? "" : "disabled"}>${state.lang === "en" ? "Activate Audience" : "Activar audiencia"}</button>
         </footer>
       </section>
     </div>
@@ -1883,10 +1978,12 @@ document.addEventListener("click", (event) => {
   }
   if (target.dataset.activationDateMode) {
     state.activationDateMode = target.dataset.activationDateMode;
+    if (state.activationDateMode === "other" && !state.activationOtherDate) state.activationOtherDate = todayIso();
     openActivateAudienceModal();
   }
   if (target.dataset.action === "create-audience-from-profile") openAudienceBuilder(currentBaseFilters(), "profiles");
   if (target.dataset.action === "toggle-builder-criteria") state.audienceBuilderCriteriaExpanded = !state.audienceBuilderCriteriaExpanded, renderAudienceBuilder();
+  if (target.dataset.action === "toggle-audience-breakdown") state.audienceBreakdownExpanded = !state.audienceBreakdownExpanded, renderAudienceBuilder();
   if (target.dataset.action === "add-audience-condition") state.audienceBuilderConditions = [...state.audienceBuilderConditions, { field: "behavioral category", operator: "contains", value: "new interest" }], state.audienceBuilderEstimateDirty = true, renderAudienceBuilder();
   if (target.dataset.toggleFieldMenu) {
     state.openFieldMenu = state.openFieldMenu === target.dataset.toggleFieldMenu ? "" : target.dataset.toggleFieldMenu;
@@ -2061,7 +2158,26 @@ document.addEventListener("change", (event) => {
   }
   if (event.target.id === "activationFrequency") {
     state.activationFrequency = event.target.value;
-    if (state.activationFrequency !== "Once") state.activationDateMode = "today";
+    if (state.activationFrequency === "Once") {
+      state.activationDateMode = "today";
+      if (!state.activationOtherDate) state.activationOtherDate = todayIso();
+    } else if (state.activationFrequency) {
+      state.activationRangeStart = state.activationRangeStart || todayIso();
+      state.activationRangeEnd = state.activationRangeEnd || addDaysIso(30);
+    }
+    openActivateAudienceModal();
+  }
+  if (event.target.id === "activationRangeStart") {
+    state.activationRangeStart = event.target.value;
+    if (state.activationRangeEnd && state.activationRangeEnd < state.activationRangeStart) state.activationRangeEnd = state.activationRangeStart;
+    openActivateAudienceModal();
+  }
+  if (event.target.id === "activationRangeEnd") {
+    state.activationRangeEnd = event.target.value;
+    openActivateAudienceModal();
+  }
+  if (event.target.id === "activationOtherDate") {
+    state.activationOtherDate = event.target.value;
     openActivateAudienceModal();
   }
 });
@@ -2097,7 +2213,6 @@ document.addEventListener("input", (event) => {
     const counter = document.getElementById("audienceNameCounter");
     if (counter) counter.textContent = `${event.target.value.length}/80`;
   }
-  if (event.target.id === "activationOtherDate") state.activationOtherDate = event.target.value;
   if (event.target.dataset.conditionValue !== undefined) {
     state.audienceBuilderConditions[Number(event.target.dataset.conditionValue)].value = event.target.value;
     state.audienceBuilderEstimateDirty = true;
