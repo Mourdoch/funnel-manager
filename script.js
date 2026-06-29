@@ -38,6 +38,7 @@ const state = {
     { field: "device type", operator: "uses", value: "Android or iOS" },
     { field: "behavioral category", operator: "contains", value: "devices, tariffs, entertainment bundles" }
   ] : [],
+  audienceBuilderEstimatedConditions: [],
   audienceBuilderEstimateDirty: false,
   audienceBuilderLastEstimatedPrompt: "",
   audienceBreakdownExpanded: true,
@@ -69,6 +70,11 @@ const state = {
     { id: "publisher_traffic_source", metric: "Trafico publisher por fuente", useCase: "Custom Aggregation", source: "publisher_events", type: "count_distinct", column: "source", timeRange: "Daily", labels: ["publisher", "source"], status: "error" }
   ]
 };
+
+if (state.audienceBuilderStep === "review") {
+  state.audienceBuilderLastEstimatedPrompt = state.audienceBuilderPrompt;
+  state.audienceBuilderEstimatedConditions = state.audienceBuilderConditions.map((condition) => ({ ...condition }));
+}
 
 const view = document.getElementById("view");
 const modalRoot = document.getElementById("modalRoot");
@@ -1133,6 +1139,7 @@ function openAudienceBuilder(baseFilters = [], source = "") {
   state.audienceBuilderSelectedPrompts = [];
   state.audienceBuilderFilters = [];
   state.audienceBuilderConditions = [];
+  state.audienceBuilderEstimatedConditions = [];
   state.audienceBuilderEstimateDirty = false;
   state.audienceBuilderLastEstimatedPrompt = "";
   state.audienceBreakdownExpanded = true;
@@ -1335,20 +1342,35 @@ function basePopulationCount() {
 }
 
 function finalAudienceCount() {
-  if (!state.audienceBuilderConditions.length) return basePopulationCount();
+  const { prompt, conditions } = estimatedAudienceInputs();
+  if (!conditions.length) return basePopulationCount();
   const base = basePopulationCount();
-  const prompt = state.audienceBuilderPrompt.toLowerCase();
-  const promptScore = Array.from(prompt).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const promptText = prompt.toLowerCase();
+  const promptScore = Array.from(promptText).reduce((sum, char) => sum + char.charCodeAt(0), 0);
   const channelScore = state.audienceBuilderChannels.reduce((sum, channel) => sum + channel.length, 0);
   let retention = state.audienceBuilderSource === "profiles" ? 0.74 : 0.82;
-  retention -= Math.min(0.34, state.audienceBuilderConditions.length * 0.055);
-  if (/7|last 7|ultimos 7/.test(prompt)) retention -= 0.08;
-  if (/android|ios|device|dispositivo/.test(prompt)) retention -= 0.05;
-  if (/region|regiones|selected regions/.test(prompt)) retention -= 0.06;
-  if (/consent|consentimiento/.test(prompt)) retention -= 0.04;
+  retention -= Math.min(0.34, conditions.length * 0.055);
+  if (/7|last 7|ultimos 7/.test(promptText)) retention -= 0.08;
+  if (/android|ios|device|dispositivo/.test(promptText)) retention -= 0.05;
+  if (/region|regiones|selected regions/.test(promptText)) retention -= 0.06;
+  if (/consent|consentimiento/.test(promptText)) retention -= 0.04;
   retention += ((promptScore + channelScore) % 9) / 100;
   const minimum = state.audienceBuilderSource === "profiles" ? 120 : 1260;
   return Math.max(minimum, Math.round(base * Math.max(0.08, Math.min(0.97, retention))));
+}
+
+function estimatedAudienceInputs() {
+  const hasSnapshot = state.audienceBuilderEstimatedConditions.length > 0 || state.audienceBuilderLastEstimatedPrompt.trim().length > 0;
+  if (state.audienceBuilderEstimateDirty && hasSnapshot) {
+    return {
+      prompt: state.audienceBuilderLastEstimatedPrompt,
+      conditions: state.audienceBuilderEstimatedConditions
+    };
+  }
+  return {
+    prompt: state.audienceBuilderPrompt,
+    conditions: state.audienceBuilderConditions
+  };
 }
 
 function renderStartingAudienceCard() {
@@ -1428,8 +1450,9 @@ function renderEstimationCard() {
 
 function audienceBreakdownData() {
   const estimated = finalAudienceCount();
-  const prompt = state.audienceBuilderPrompt.toLowerCase();
-  const conditionText = state.audienceBuilderConditions.map((item) => `${item.field} ${item.operator} ${item.value}`).join(" ").toLowerCase();
+  const { prompt: estimatedPrompt, conditions } = estimatedAudienceInputs();
+  const prompt = estimatedPrompt.toLowerCase();
+  const conditionText = conditions.map((item) => `${item.field} ${item.operator} ${item.value}`).join(" ").toLowerCase();
   const selectedChannel = state.audienceBuilderChannels[0] || "";
   const seed = estimated + prompt.length * 17 + conditionText.length * 11 + selectedChannel.length * 23;
   const androidSignal = /android/.test(prompt + conditionText);
@@ -1591,6 +1614,7 @@ function showAudienceReview() {
     state.audienceBuilderConditions = generateAudienceConditions(state.audienceBuilderPrompt);
   }
   state.audienceBuilderLastEstimatedPrompt = state.audienceBuilderPrompt;
+  state.audienceBuilderEstimatedConditions = state.audienceBuilderConditions.map((condition) => ({ ...condition }));
   state.audienceBuilderEstimateDirty = false;
   state.audienceBuilderStep = "review";
   routeTo("audienceBuilder");
@@ -1665,6 +1689,10 @@ function saveAudience(status) {
     closeModal();
     routeTo("audiences");
     showToast(state.lang === "en" ? "Audience activated successfully" : "Audiencia activada correctamente", "success");
+  } else if (status === "draft") {
+    closeModal();
+    routeTo("audiences");
+    showToast(state.lang === "en" ? "Audience saved as draft" : "Audiencia guardada como borrador", "success");
   } else {
     openAudienceResultModal(status, name);
     showToast(t("audienceCreated"));
@@ -1868,25 +1896,26 @@ function cancelAudienceFlow() {
 
 function openAudienceResultModal(status, name) {
   const resultMap = {
-    activated: { title: t("audienceActivatedTitle"), copy: t("audienceActivatedCopy"), icon: "check_circle", tone: "success" },
-    draft: { title: t("audienceDraftTitle"), copy: t("audienceDraftCopy"), icon: "draft", tone: "warning" },
-    cancelled: { title: t("audienceCancelledTitle"), copy: t("audienceCancelledCopy"), icon: "cancel", tone: "error" }
+    activated: { title: t("audienceActivatedTitle"), copy: t("audienceActivatedCopy") },
+    draft: { title: t("audienceDraftTitle"), copy: t("audienceDraftCopy") },
+    cancelled: { title: t("audienceCancelledTitle"), copy: t("audienceCancelledCopy") }
   };
   const result = resultMap[status];
   modalRoot.innerHTML = `
-    <div class="modal-backdrop">
-      <section class="modal result-modal ${result.tone}" role="dialog" aria-modal="true">
-        <button class="close result-close" data-close-modal>&times;</button>
-        <div class="modal-result-body">
-          <div class="result-icon">${icon(result.icon)}</div>
+    <div class="modal-backdrop audience-builder-dialog-backdrop">
+      <section class="modal audience-builder-dialog" role="dialog" aria-modal="true">
+        <header class="modal-header audience-builder-dialog-header">
           <h2>${result.title}</h2>
+          <button class="close" data-close-modal aria-label="${t("cancel")}">${icon("close")}</button>
+        </header>
+        <div class="modal-body audience-builder-dialog-body">
           <p class="muted">${result.copy}</p>
           ${name ? `<strong>${escapeText(name)}</strong>` : ""}
-          <div class="actions">
-            <button class="button tonal" data-action="builder-back">${t("backToAudiences")}</button>
-            <button class="button" data-action="new-audience">${icon("group_add")} ${t("createAnother")}</button>
-          </div>
         </div>
+        <footer class="modal-footer audience-builder-dialog-footer">
+          <button class="button text" data-action="builder-back">${t("backToAudiences")}</button>
+          <button class="button" data-action="new-audience">${icon("group_add")} ${t("createAnother")}</button>
+        </footer>
       </section>
     </div>
   `;

@@ -1998,39 +1998,6 @@ tbody tr:hover { background: #fafbff; }
 .activation-check .material-symbols-outlined {
   font-size: 16px;
 }
-.result-icon {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-.result-modal.success .result-icon { background: #edf7ed; color: var(--success); }
-.result-modal.warning .result-icon { background: #fff4e5; color: var(--warning); }
-.result-modal.error .result-icon { background: #fdecea; color: var(--error); }
-.result-modal {
-  width: min(460px, 100%);
-  position: relative;
-}
-.result-close {
-  position: absolute;
-  top: 12px;
-  right: 14px;
-}
-.modal-result-body {
-  display: grid;
-  justify-items: center;
-  gap: 14px;
-  padding: 34px 28px 28px;
-  text-align: center;
-}
-.modal-result-body .actions {
-  margin-top: 8px;
-  justify-content: center;
-}
-
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -2048,7 +2015,6 @@ tbody tr:hover { background: #fafbff; }
   border-radius: 8px;
   box-shadow: 0 12px 40px rgba(0,0,0,.24);
 }
-.modal.result-modal { width: min(460px, 100%); }
 .activation-type-modal,
 .audience-builder-dialog {
   width: min(460px, 100%);
