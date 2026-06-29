@@ -1784,9 +1784,9 @@ function openSaveDraftAudienceModal() {
   state.activationAudienceName = name;
   modalRoot.innerHTML = `
     <div class="modal-backdrop audience-builder-dialog-backdrop">
-      <section class="modal audience-builder-dialog" role="dialog" aria-modal="true" aria-label="${state.lang === "en" ? "Audience saved as Draft" : "Audiencia guardada como draft"}">
+      <section class="modal audience-builder-dialog" role="dialog" aria-modal="true" aria-label="${state.lang === "en" ? "Save audience draft" : "Guardar draft de audiencia"}">
         <header class="modal-header audience-builder-dialog-header">
-          <h2>${state.lang === "en" ? "Audience saved as Draft" : "Audience saved as Draft"}</h2>
+          <h2>${state.lang === "en" ? "Save audience draft" : "Guardar draft de audiencia"}</h2>
           <button class="close" data-close-modal aria-label="${t("cancel")}">${icon("close")}</button>
         </header>
         <div class="modal-body audience-builder-dialog-body">
