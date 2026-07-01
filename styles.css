@@ -2235,6 +2235,10 @@ tbody tr:hover { background: #fafbff; }
   margin-top: auto;
   padding: 8px 16px 16px;
   border-top: 0;
+  border-radius: 0 0 8px 8px;
+  background: var(--surface);
+  justify-content: flex-end;
+  gap: 8px;
 }
 .activation-setup-footer .button {
   min-width: 0;
@@ -2467,7 +2471,7 @@ tbody tr:hover { background: #fafbff; }
 .activate-backdrop { background: rgba(28, 33, 40, .48); }
 .activate-modal {
   width: min(430px, calc(100vw - 48px));
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
 }
 .activate-modal-header {
