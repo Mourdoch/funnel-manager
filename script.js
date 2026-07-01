@@ -41,7 +41,7 @@ const state = {
   audienceBuilderEstimatedConditions: [],
   audienceBuilderEstimateDirty: false,
   audienceBuilderLastEstimatedPrompt: "",
-  audienceBreakdownExpanded: true,
+  audienceBreakdownExpanded: false,
   audienceBuilderChannels: [],
   audienceBuilderActivationTypes: {},
   activationTypeDialog: "",
@@ -52,6 +52,17 @@ const state = {
   activationOtherDate: "",
   activationRangeStart: "",
   activationRangeEnd: "",
+  activationScheduleStartTime: "",
+  activationScheduleEndTime: "",
+  activationScheduleTimezone: "",
+  scheduleDraftFrequency: "",
+  scheduleDraftDateMode: "today",
+  scheduleDraftOtherDate: "",
+  scheduleDraftRangeStart: "",
+  scheduleDraftRangeEnd: "",
+  scheduleDraftStartTime: "",
+  scheduleDraftEndTime: "",
+  scheduleDraftTimezone: "",
   audienceBuilderResult: null,
   lastAudienceName: "",
   audiences: [
@@ -1142,7 +1153,7 @@ function openAudienceBuilder(baseFilters = [], source = "") {
   state.audienceBuilderEstimatedConditions = [];
   state.audienceBuilderEstimateDirty = false;
   state.audienceBuilderLastEstimatedPrompt = "";
-  state.audienceBreakdownExpanded = true;
+  state.audienceBreakdownExpanded = false;
   state.audienceBuilderStep = "compose";
   state.audienceBuilderResult = null;
   state.audienceBuilderChannels = [];
@@ -1155,6 +1166,10 @@ function openAudienceBuilder(baseFilters = [], source = "") {
   state.activationOtherDate = "";
   state.activationRangeStart = "";
   state.activationRangeEnd = "";
+  state.activationScheduleStartTime = "";
+  state.activationScheduleEndTime = "";
+  state.activationScheduleTimezone = "";
+  resetScheduleDraft();
   state.lastAudienceName = "";
   routeTo("audienceBuilder");
 }
@@ -1170,7 +1185,7 @@ function renderAudienceBuilder() {
   const showBuilderEmptyState = !hasStartingAudience && !hasConditions;
   const selectedActivation = activationOptionById(state.audienceBuilderChannels[0]);
   const hasActivationType = !selectedActivation?.types?.length || Boolean(state.audienceBuilderActivationTypes[selectedActivation.id]);
-  const canActivate = hasConditions && state.audienceBuilderChannels.length === 1 && hasActivationType && !state.audienceBuilderEstimateDirty;
+  const canActivate = hasConditions && state.audienceBuilderChannels.length === 1 && hasActivationType && activationScheduleReady() && !state.audienceBuilderEstimateDirty;
   const cancelLabel = state.audienceBuilderSource === "profiles" ? (state.lang === "en" ? "Cancel & back" : "Cancelar y volver") : t("cancel");
   view.innerHTML = `
     <section class="audience-builder-page exact">
@@ -1211,6 +1226,7 @@ function renderAudienceBuilder() {
             <section class="activation-section">
               <h3>${t("activationOptions")}</h3>
               <p class="muted">${state.lang === "en" ? "Select one mandatory activation type for the final audience." : "Selecciona un tipo de activacion obligatorio para la audiencia final."}</p>
+              ${renderScheduleAlert()}
               <div class="activation-card-grid">${activationOptions().map(activationCard).join("")}</div>
             </section>
           ` : `
@@ -1218,6 +1234,7 @@ function renderAudienceBuilder() {
             <section class="activation-section">
               <h3>${t("activationOptions")}</h3>
               <p class="muted">${state.lang === "en" ? "Select one mandatory activation type for the final audience." : "Selecciona un tipo de activacion obligatorio para la audiencia final."}</p>
+              ${renderScheduleAlert()}
               <div class="activation-card-grid">${activationOptions().map(activationCard).join("")}</div>
             </section>
           `}
@@ -1714,6 +1731,10 @@ function addDaysIso(days) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 
+function scheduleTimezoneOptions() {
+  return ["Europe/London", "America/Havana", "America/New_York", "UTC"];
+}
+
 function activationFrequencyOptions() {
   return [
     { value: "Once", label: "Once", hint: "Runs only once" },
@@ -1730,17 +1751,126 @@ function usesAudienceRange() {
   return Boolean(state.activationFrequency && state.activationFrequency !== "Once");
 }
 
+function draftUsesAudienceRange() {
+  return Boolean(state.scheduleDraftFrequency && state.scheduleDraftFrequency !== "Once");
+}
+
+function resetScheduleDraft() {
+  state.scheduleDraftFrequency = "";
+  state.scheduleDraftDateMode = "today";
+  state.scheduleDraftOtherDate = "";
+  state.scheduleDraftRangeStart = "";
+  state.scheduleDraftRangeEnd = "";
+  state.scheduleDraftStartTime = "";
+  state.scheduleDraftEndTime = "";
+  state.scheduleDraftTimezone = "";
+}
+
+function hydrateScheduleDraft() {
+  state.scheduleDraftFrequency = state.activationFrequency;
+  state.scheduleDraftDateMode = state.activationDateMode || "today";
+  state.scheduleDraftOtherDate = state.activationOtherDate || todayIso();
+  state.scheduleDraftRangeStart = state.activationRangeStart || todayIso();
+  state.scheduleDraftRangeEnd = state.activationRangeEnd || addDaysIso(30);
+  state.scheduleDraftStartTime = state.activationScheduleStartTime || "09:00";
+  state.scheduleDraftEndTime = state.activationScheduleEndTime || "09:00";
+  state.scheduleDraftTimezone = state.activationScheduleTimezone || "Europe/London";
+}
+
+function applyScheduleDraftDefaults() {
+  if (state.scheduleDraftFrequency === "Once") {
+    state.scheduleDraftDateMode = "other";
+    state.scheduleDraftOtherDate = state.scheduleDraftOtherDate || todayIso();
+    state.scheduleDraftStartTime = state.scheduleDraftStartTime || "09:00";
+    state.scheduleDraftTimezone = state.scheduleDraftTimezone || "Europe/London";
+  } else if (state.scheduleDraftFrequency) {
+    state.scheduleDraftRangeStart = state.scheduleDraftRangeStart || todayIso();
+    state.scheduleDraftRangeEnd = state.scheduleDraftRangeEnd || addDaysIso(30);
+    state.scheduleDraftStartTime = state.scheduleDraftStartTime || "09:00";
+    state.scheduleDraftEndTime = state.scheduleDraftEndTime || state.scheduleDraftStartTime;
+    state.scheduleDraftTimezone = state.scheduleDraftTimezone || "Europe/London";
+  }
+}
+
+function scheduleDraftReady() {
+  if (!state.scheduleDraftFrequency) return false;
+  if (!state.scheduleDraftStartTime || !state.scheduleDraftTimezone) return false;
+  if (draftUsesAudienceRange()) return Boolean(state.scheduleDraftRangeStart && state.scheduleDraftRangeEnd && state.scheduleDraftRangeEnd >= state.scheduleDraftRangeStart && state.scheduleDraftEndTime);
+  if (state.scheduleDraftDateMode === "other") return Boolean(state.scheduleDraftOtherDate);
+  return true;
+}
+
+function commitScheduleDraft() {
+  state.activationFrequency = state.scheduleDraftFrequency;
+  state.activationDateMode = state.scheduleDraftDateMode || "today";
+  state.activationOtherDate = state.scheduleDraftOtherDate;
+  state.activationRangeStart = state.scheduleDraftRangeStart;
+  state.activationRangeEnd = state.scheduleDraftRangeEnd;
+  state.activationScheduleStartTime = state.scheduleDraftStartTime;
+  state.activationScheduleEndTime = state.scheduleDraftEndTime || state.scheduleDraftStartTime;
+  state.activationScheduleTimezone = state.scheduleDraftTimezone;
+}
+
 function activationScheduleReady() {
   if (!state.activationFrequency) return false;
-  if (usesAudienceRange()) return Boolean(state.activationRangeStart && state.activationRangeEnd && state.activationRangeEnd >= state.activationRangeStart);
+  if (!state.activationScheduleStartTime || !state.activationScheduleTimezone) return false;
+  if (usesAudienceRange()) return Boolean(state.activationRangeStart && state.activationRangeEnd && state.activationRangeEnd >= state.activationRangeStart && state.activationScheduleEndTime);
   if (state.activationDateMode === "other") return Boolean(state.activationOtherDate);
   return true;
 }
 
 function activationScheduleSummary() {
   if (!state.activationFrequency) return null;
-  if (usesAudienceRange()) return { frequency: state.activationFrequency, rangeStart: state.activationRangeStart, rangeEnd: state.activationRangeEnd };
-  return { frequency: state.activationFrequency, date: state.activationDateMode === "today" ? todayIso() : state.activationOtherDate };
+  if (usesAudienceRange()) {
+    return {
+      frequency: state.activationFrequency,
+      rangeStart: state.activationRangeStart,
+      rangeEnd: state.activationRangeEnd,
+      startTime: state.activationScheduleStartTime,
+      endTime: state.activationScheduleEndTime,
+      timezone: state.activationScheduleTimezone,
+      label: activationScheduleSentence()
+    };
+  }
+  return {
+    frequency: state.activationFrequency,
+    date: state.activationDateMode === "today" ? todayIso() : state.activationOtherDate,
+    startTime: state.activationScheduleStartTime,
+    timezone: state.activationScheduleTimezone,
+    label: activationScheduleSentence()
+  };
+}
+
+function activationScheduleSentence() {
+  if (!activationScheduleReady()) return "";
+  const timezone = state.activationScheduleTimezone;
+  if (usesAudienceRange()) {
+    const timeRange = state.activationScheduleEndTime && state.activationScheduleEndTime !== state.activationScheduleStartTime
+      ? `${state.activationScheduleStartTime}-${state.activationScheduleEndTime}`
+      : state.activationScheduleStartTime;
+    return `${state.activationFrequency} at ${timeRange} · ${timezone}`;
+  }
+  const date = state.activationDateMode === "today" ? "Today" : state.activationOtherDate;
+  return `${state.activationFrequency} at ${state.activationScheduleStartTime} · ${date} · ${timezone}`;
+}
+
+function renderScheduleAlert() {
+  const hasSchedule = activationScheduleReady();
+  const text = hasSchedule ? activationScheduleSentence() : "Choose when this audience should refresh.";
+  const buttonText = hasSchedule ? "Edit" : "Configure schedule";
+  const buttonIcon = hasSchedule ? "edit_square" : "arrow_forward";
+  return `
+    <div class="schedule-alert ${hasSchedule ? "filled" : "empty"}" role="status" aria-live="polite">
+      <div class="schedule-alert-content">
+        <strong>Schedule Setup</strong>
+        <span>${escapeText(text)}</span>
+      </div>
+      <button class="schedule-alert-action" data-action="open-schedule-config">
+        <span>${buttonText}</span>
+        ${icon(buttonIcon)}
+      </button>
+    </div>
+  `;
 }
 
 function openActivationTypeDialog(channelId) {
@@ -1809,16 +1939,13 @@ function openSaveDraftAudienceModal() {
 function openActivateAudienceModal() {
   const name = state.activationAudienceName || defaultAudienceName();
   state.activationAudienceName = name;
-  const showOnceDate = state.activationFrequency === "Once";
-  const showAudienceRange = usesAudienceRange();
-  const canActivate = activationScheduleReady();
   modalRoot.innerHTML = `
     <div class="modal-backdrop activate-backdrop">
       <section class="modal activate-modal audience-builder-dialog" role="dialog" aria-modal="true" aria-label="${state.lang === "en" ? "Activate Audience" : "Activar audiencia"}">
         <header class="activate-modal-header">
           <div>
             <h2>${state.lang === "en" ? "Activate the Audience" : "Activar la audiencia"}</h2>
-            <p class="muted">${state.lang === "en" ? "First step. Set the name and the frequency of the audience before the activation." : "Primer paso. Define el nombre y la frecuencia de la audiencia antes de activarla."}</p>
+            <p class="muted">${state.lang === "en" ? "Confirm the audience name before activation." : "Confirma el nombre de la audiencia antes de activarla."}</p>
           </div>
           <button class="close activate-close" data-close-modal aria-label="${t("cancel")}">${icon("close")}</button>
         </header>
@@ -1828,48 +1955,105 @@ function openActivateAudienceModal() {
             <input class="input" id="audienceName" maxlength="80" value="${escapeAttr(name)}" />
             <small id="audienceNameCounter">${name.length}/80</small>
           </label>
-          <label class="builder-dialog-field">
-            <span>Refresh frequency</span>
-            <select class="select" id="activationFrequency">
-              <option value="">Refresh frequency</option>
-              ${activationFrequencyOptions().map((item) => `<option value="${escapeAttr(item.value)}" ${state.activationFrequency === item.value ? "selected" : ""}>${item.label} (${item.hint})</option>`).join("")}
-            </select>
-            <small>Choose how often this audience should refresh.</small>
-          </label>
-          ${showAudienceRange ? `
-            <fieldset class="builder-dialog-field audience-range-field">
-              <legend>Audience range</legend>
-              <div class="audience-range-inputs">
-                <label>
-                  <span>Start date</span>
-                  <input class="input" id="activationRangeStart" type="date" value="${escapeAttr(state.activationRangeStart)}" />
-                </label>
-                <label>
-                  <span>End date</span>
-                  <input class="input" id="activationRangeEnd" type="date" value="${escapeAttr(state.activationRangeEnd)}" min="${escapeAttr(state.activationRangeStart)}" />
-                </label>
-              </div>
-              <small>Select the active range for recurring audience refreshes.</small>
-            </fieldset>
-          ` : ""}
-          ${showOnceDate ? `
-            <div class="activation-date-options" role="radiogroup" aria-label="Activation date">
-              <button class="activation-date-choice ${state.activationDateMode === "today" ? "selected" : ""}" data-activation-date-mode="today" role="radio" aria-checked="${state.activationDateMode === "today"}">${icon(state.activationDateMode === "today" ? "radio_button_checked" : "radio_button_unchecked")} Today</button>
-              <button class="activation-date-choice ${state.activationDateMode === "other" ? "selected" : ""}" data-activation-date-mode="other" role="radio" aria-checked="${state.activationDateMode === "other"}">${icon(state.activationDateMode === "other" ? "radio_button_checked" : "radio_button_unchecked")} Other date</button>
-            </div>
-            ${state.activationDateMode === "other" ? `
-              <label class="builder-dialog-field">
-                <span>Date</span>
-                <input class="input" id="activationOtherDate" type="date" value="${escapeAttr(state.activationOtherDate)}" />
-              </label>
-            ` : ""}
-          ` : ""}
         </div>
         <footer class="activate-modal-footer">
           <button class="button text" data-close-modal>${t("cancel")}</button>
-          <button class="button" data-action="confirm-activate-audience" ${canActivate ? "" : "disabled"}>${state.lang === "en" ? "Activate Audience" : "Activar audiencia"}</button>
+          <button class="button" data-action="confirm-activate-audience">${state.lang === "en" ? "Activate Audience" : "Activar audiencia"}</button>
         </footer>
       </section>
+    </div>
+  `;
+}
+
+function openScheduleConfigurationModal(options = {}) {
+  if (!options.preserveDraft) {
+    hydrateScheduleDraft();
+  }
+  applyScheduleDraftDefaults();
+  const showOnceDate = state.scheduleDraftFrequency === "Once";
+  const showAudienceRange = draftUsesAudienceRange();
+  const canSave = scheduleDraftReady();
+  modalRoot.innerHTML = `
+    <div class="modal-backdrop schedule-backdrop">
+      <section class="modal schedule-modal" role="dialog" aria-modal="true" aria-label="Schedule Configuration">
+        <header class="schedule-modal-header">
+          <h2>Schedule Configuration</h2>
+          <button class="close schedule-close" data-close-modal aria-label="${t("cancel")}">${icon("close")}</button>
+        </header>
+        <div class="schedule-modal-body">
+          <p>Choose when the audience should refresh</p>
+          <label class="builder-dialog-field schedule-frequency-field">
+            <span>Refresh frequency</span>
+            <select class="select" id="scheduleFrequency">
+              <option value="">Refresh frequency</option>
+              ${activationFrequencyOptions().map((item) => `<option value="${escapeAttr(item.value)}" ${state.scheduleDraftFrequency === item.value ? "selected" : ""}>${item.label} (${item.hint})</option>`).join("")}
+            </select>
+            <small>Choose how often this audience should refresh.</small>
+          </label>
+          ${state.scheduleDraftFrequency ? `
+            <div class="schedule-divider"></div>
+            ${showAudienceRange ? renderRecurringScheduleFields() : ""}
+            ${showOnceDate ? renderOnceScheduleFields() : ""}
+          ` : ""}
+        </div>
+        <footer class="schedule-modal-footer">
+          <button class="button text" data-close-modal>${t("cancel")}</button>
+          <button class="button" data-action="save-schedule-config" ${canSave ? "" : "disabled"}>Save</button>
+        </footer>
+      </section>
+    </div>
+  `;
+}
+
+function renderRecurringScheduleFields() {
+  return `
+    <div class="schedule-grid">
+      <label class="schedule-field">
+        <span>Start Date</span>
+        <input class="input" id="scheduleRangeStart" type="date" value="${escapeAttr(state.scheduleDraftRangeStart)}" />
+      </label>
+      <label class="schedule-field">
+        <span>Time</span>
+        <input class="input" id="scheduleStartTime" type="time" step="60" value="${escapeAttr(state.scheduleDraftStartTime)}" />
+      </label>
+      <label class="schedule-field">
+        <span>End Date</span>
+        <input class="input" id="scheduleRangeEnd" type="date" value="${escapeAttr(state.scheduleDraftRangeEnd)}" min="${escapeAttr(state.scheduleDraftRangeStart)}" />
+      </label>
+      <label class="schedule-field">
+        <span>Time</span>
+        <input class="input" id="scheduleEndTime" type="time" step="60" value="${escapeAttr(state.scheduleDraftEndTime)}" />
+      </label>
+      <label class="schedule-field timezone">
+        <span>Time zone</span>
+        <select class="select" id="scheduleTimezone">
+          <option value="">Selects</option>
+          ${scheduleTimezoneOptions().map((zone) => `<option value="${escapeAttr(zone)}" ${state.scheduleDraftTimezone === zone ? "selected" : ""}>${zone}</option>`).join("")}
+        </select>
+      </label>
+    </div>
+  `;
+}
+
+function renderOnceScheduleFields() {
+  const selectedDate = state.scheduleDraftOtherDate || todayIso();
+  return `
+    <div class="schedule-grid once">
+      <label class="schedule-field">
+        <span>Date</span>
+        <input class="input" id="scheduleOtherDate" type="date" value="${escapeAttr(selectedDate)}" />
+      </label>
+      <label class="schedule-field">
+        <span>Time</span>
+        <input class="input" id="scheduleStartTime" type="time" step="60" value="${escapeAttr(state.scheduleDraftStartTime)}" />
+      </label>
+      <label class="schedule-field timezone">
+        <span>Time zone</span>
+        <select class="select" id="scheduleTimezone">
+          <option value="">Selects</option>
+          ${scheduleTimezoneOptions().map((zone) => `<option value="${escapeAttr(zone)}" ${state.scheduleDraftTimezone === zone ? "selected" : ""}>${zone}</option>`).join("")}
+        </select>
+      </label>
     </div>
   `;
 }
@@ -1986,6 +2170,13 @@ document.addEventListener("click", (event) => {
   if (target.dataset.action === "confirm-cancel-audience") closeModal(), routeTo(state.audienceBuilderSource === "profiles" ? "profiles" : "audiences");
   if (target.dataset.action === "save-audience-draft") openSaveDraftAudienceModal();
   if (target.dataset.action === "confirm-save-audience-draft") saveAudience("draft");
+  if (target.dataset.action === "open-schedule-config") openScheduleConfigurationModal();
+  if (target.dataset.action === "save-schedule-config") {
+    if (!scheduleDraftReady()) return;
+    commitScheduleDraft();
+    closeModal();
+    renderAudienceBuilder();
+  }
   if (target.dataset.action === "activate-audience-flow") openActivateAudienceModal();
   if (target.dataset.action === "confirm-activate-audience") saveAudience("activated");
   if (target.dataset.activationChannel) openActivationTypeDialog(target.dataset.activationChannel);
@@ -2009,6 +2200,11 @@ document.addEventListener("click", (event) => {
     state.activationDateMode = target.dataset.activationDateMode;
     if (state.activationDateMode === "other" && !state.activationOtherDate) state.activationOtherDate = todayIso();
     openActivateAudienceModal();
+  }
+  if (target.dataset.scheduleDateMode) {
+    state.scheduleDraftDateMode = target.dataset.scheduleDateMode;
+    if (state.scheduleDraftDateMode === "other" && !state.scheduleDraftOtherDate) state.scheduleDraftOtherDate = todayIso();
+    openScheduleConfigurationModal({ preserveDraft: true });
   }
   if (target.dataset.action === "create-audience-from-profile") openAudienceBuilder(currentBaseFilters(), "profiles");
   if (target.dataset.action === "toggle-builder-criteria") state.audienceBuilderCriteriaExpanded = !state.audienceBuilderCriteriaExpanded, renderAudienceBuilder();
@@ -2185,29 +2381,41 @@ document.addEventListener("change", (event) => {
     state.audienceSort = event.target.value;
     renderAudiences();
   }
-  if (event.target.id === "activationFrequency") {
-    state.activationFrequency = event.target.value;
-    if (state.activationFrequency === "Once") {
-      state.activationDateMode = "today";
-      if (!state.activationOtherDate) state.activationOtherDate = todayIso();
-    } else if (state.activationFrequency) {
-      state.activationRangeStart = state.activationRangeStart || todayIso();
-      state.activationRangeEnd = state.activationRangeEnd || addDaysIso(30);
+  if (event.target.id === "scheduleFrequency") {
+    state.scheduleDraftFrequency = event.target.value;
+    if (state.scheduleDraftFrequency === "Once") {
+      state.scheduleDraftDateMode = "other";
+      state.scheduleDraftOtherDate = state.scheduleDraftOtherDate || todayIso();
     }
-    openActivateAudienceModal();
+    applyScheduleDraftDefaults();
+    openScheduleConfigurationModal({ preserveDraft: true });
   }
-  if (event.target.id === "activationRangeStart") {
-    state.activationRangeStart = event.target.value;
-    if (state.activationRangeEnd && state.activationRangeEnd < state.activationRangeStart) state.activationRangeEnd = state.activationRangeStart;
-    openActivateAudienceModal();
+  if (event.target.id === "scheduleRangeStart") {
+    state.scheduleDraftRangeStart = event.target.value;
+    if (state.scheduleDraftRangeEnd && state.scheduleDraftRangeEnd < state.scheduleDraftRangeStart) state.scheduleDraftRangeEnd = state.scheduleDraftRangeStart;
+    openScheduleConfigurationModal({ preserveDraft: true });
   }
-  if (event.target.id === "activationRangeEnd") {
-    state.activationRangeEnd = event.target.value;
-    openActivateAudienceModal();
+  if (event.target.id === "scheduleRangeEnd") {
+    state.scheduleDraftRangeEnd = event.target.value;
+    openScheduleConfigurationModal({ preserveDraft: true });
   }
-  if (event.target.id === "activationOtherDate") {
-    state.activationOtherDate = event.target.value;
-    openActivateAudienceModal();
+  if (event.target.id === "scheduleOtherDate") {
+    state.scheduleDraftOtherDate = event.target.value;
+    state.scheduleDraftDateMode = "other";
+    openScheduleConfigurationModal({ preserveDraft: true });
+  }
+  if (event.target.id === "scheduleStartTime") {
+    state.scheduleDraftStartTime = event.target.value;
+    if (!state.scheduleDraftEndTime) state.scheduleDraftEndTime = event.target.value;
+    openScheduleConfigurationModal({ preserveDraft: true });
+  }
+  if (event.target.id === "scheduleEndTime") {
+    state.scheduleDraftEndTime = event.target.value;
+    openScheduleConfigurationModal({ preserveDraft: true });
+  }
+  if (event.target.id === "scheduleTimezone") {
+    state.scheduleDraftTimezone = event.target.value;
+    openScheduleConfigurationModal({ preserveDraft: true });
   }
 });
 
