@@ -63,6 +63,9 @@ const state = {
   scheduleDraftStartTime: "",
   scheduleDraftEndTime: "",
   scheduleDraftTimezone: "",
+  scheduleDropdown: "",
+  scheduleCalendarField: "",
+  scheduleCalendarMonth: "",
   audienceBuilderResult: null,
   lastAudienceName: "",
   audiences: [
@@ -253,7 +256,7 @@ const copy = {
     loadingProfiles: "Loading profiles...",
     audienceName: "Audience name",
     activationChannels: "Activation channels",
-    activationOptions: "Activation options",
+    activationOptions: "Activation Setup",
     activationHelp: "Choose where this audience should be available after creation.",
     emailActivation: "Email campaign",
     pushActivation: "Push notification",
@@ -425,7 +428,7 @@ const copy = {
     loadingProfiles: "Cargando perfiles...",
     audienceName: "Nombre de audiencia",
     activationChannels: "Canales de activacion",
-    activationOptions: "Opciones de activacion",
+    activationOptions: "Activation Setup",
     activationHelp: "Elige donde estara disponible esta audiencia despues de crearla.",
     emailActivation: "Campana de email",
     pushActivation: "Notificacion push",
@@ -1725,14 +1728,78 @@ function todayIso() {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 
+function isoDateFromLocal(date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+function dateFromIso(value) {
+  const [year, month, day] = String(value || todayIso()).split("-").map(Number);
+  return new Date(year, (month || 1) - 1, day || 1);
+}
+
 function addDaysIso(days) {
   const date = new Date();
   date.setDate(date.getDate() + days);
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  return isoDateFromLocal(date);
 }
 
 function scheduleTimezoneOptions() {
   return ["Europe/London", "America/Havana", "America/New_York", "UTC"];
+}
+
+function scheduleTimeOptions() {
+  return Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, "0")}:00`);
+}
+
+function renderScheduleTimeDatalist() {
+  return `<datalist id="scheduleTimeOptions">${scheduleTimeOptions().map((time) => `<option value="${time}"></option>`).join("")}</datalist>`;
+}
+
+function normalizeScheduleTime(value) {
+  const trimmed = String(value || "").trim();
+  const match = trimmed.match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+  if (!match) return trimmed;
+  const hour = Math.min(23, Number(match[1]));
+  const minute = Math.min(59, Number(match[2] || 0));
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function scheduleTimeReady(value) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function scheduleDropdownLabel(key, value) {
+  if (key === "frequency") {
+    const option = activationFrequencyOptions().find((item) => item.value === value);
+    return option ? `${option.label} (${option.hint})` : "";
+  }
+  return value || "";
+}
+
+function renderScheduleDropdown({ key, label, placeholder, value, options, help }) {
+  const current = value || "";
+  const isOpen = state.scheduleDropdown === key;
+  return `
+    <label class="builder-dialog-field schedule-menu-field">
+      <span>${label}</span>
+      <div class="menu-field ${isOpen ? "open" : ""}">
+        ${isOpen ? `
+          <div class="field-menu down schedule-field-menu">
+            ${options.map((option) => {
+              const optionValue = option.value || option;
+              const optionLabel = option.label ? `${option.label}${option.hint ? ` (${option.hint})` : ""}` : option;
+              return `<button type="button" data-schedule-option="${key}" data-schedule-value="${escapeAttr(optionValue)}">${optionLabel}</button>`;
+            }).join("")}
+          </div>
+        ` : ""}
+        <button type="button" class="field-trigger ${current ? "has-value" : ""}" data-toggle-schedule-menu="${key}">
+          <span>${escapeText(scheduleDropdownLabel(key, current) || placeholder)}</span>
+          ${icon("arrow_drop_down")}
+        </button>
+      </div>
+      ${help ? `<small>${help}</small>` : ""}
+    </label>
+  `;
 }
 
 function activationFrequencyOptions() {
@@ -1764,6 +1831,9 @@ function resetScheduleDraft() {
   state.scheduleDraftStartTime = "";
   state.scheduleDraftEndTime = "";
   state.scheduleDraftTimezone = "";
+  state.scheduleDropdown = "";
+  state.scheduleCalendarField = "";
+  state.scheduleCalendarMonth = "";
 }
 
 function hydrateScheduleDraft() {
@@ -1794,8 +1864,8 @@ function applyScheduleDraftDefaults() {
 
 function scheduleDraftReady() {
   if (!state.scheduleDraftFrequency) return false;
-  if (!state.scheduleDraftStartTime || !state.scheduleDraftTimezone) return false;
-  if (draftUsesAudienceRange()) return Boolean(state.scheduleDraftRangeStart && state.scheduleDraftRangeEnd && state.scheduleDraftRangeEnd >= state.scheduleDraftRangeStart && state.scheduleDraftEndTime);
+  if (!scheduleTimeReady(state.scheduleDraftStartTime) || !state.scheduleDraftTimezone) return false;
+  if (draftUsesAudienceRange()) return Boolean(state.scheduleDraftRangeStart && state.scheduleDraftRangeEnd && state.scheduleDraftRangeEnd >= state.scheduleDraftRangeStart && scheduleTimeReady(state.scheduleDraftEndTime));
   if (state.scheduleDraftDateMode === "other") return Boolean(state.scheduleDraftOtherDate);
   return true;
 }
@@ -1813,8 +1883,8 @@ function commitScheduleDraft() {
 
 function activationScheduleReady() {
   if (!state.activationFrequency) return false;
-  if (!state.activationScheduleStartTime || !state.activationScheduleTimezone) return false;
-  if (usesAudienceRange()) return Boolean(state.activationRangeStart && state.activationRangeEnd && state.activationRangeEnd >= state.activationRangeStart && state.activationScheduleEndTime);
+  if (!scheduleTimeReady(state.activationScheduleStartTime) || !state.activationScheduleTimezone) return false;
+  if (usesAudienceRange()) return Boolean(state.activationRangeStart && state.activationRangeEnd && state.activationRangeEnd >= state.activationRangeStart && scheduleTimeReady(state.activationScheduleEndTime));
   if (state.activationDateMode === "other") return Boolean(state.activationOtherDate);
   return true;
 }
@@ -1845,13 +1915,100 @@ function activationScheduleSentence() {
   if (!activationScheduleReady()) return "";
   const timezone = state.activationScheduleTimezone;
   if (usesAudienceRange()) {
-    const timeRange = state.activationScheduleEndTime && state.activationScheduleEndTime !== state.activationScheduleStartTime
-      ? `${state.activationScheduleStartTime}-${state.activationScheduleEndTime}`
-      : state.activationScheduleStartTime;
-    return `${state.activationFrequency} at ${timeRange} · ${timezone}`;
+    return `${state.activationFrequency} at ${state.activationRangeStart} · ${state.activationScheduleStartTime} to ${state.activationRangeEnd} · ${state.activationScheduleEndTime} · ${timezone}`;
   }
   const date = state.activationDateMode === "today" ? "Today" : state.activationOtherDate;
-  return `${state.activationFrequency} at ${state.activationScheduleStartTime} · ${date} · ${timezone}`;
+  return `${state.activationFrequency} at ${date} · ${state.activationScheduleStartTime} · ${timezone}`;
+}
+
+function scheduleDateValue(field) {
+  if (field === "rangeStart") return state.scheduleDraftRangeStart;
+  if (field === "rangeEnd") return state.scheduleDraftRangeEnd;
+  return state.scheduleDraftOtherDate || todayIso();
+}
+
+function setScheduleDateValue(field, value) {
+  if (field === "rangeStart") {
+    state.scheduleDraftRangeStart = value;
+    if (state.scheduleDraftRangeEnd && state.scheduleDraftRangeEnd < value) state.scheduleDraftRangeEnd = value;
+    return;
+  }
+  if (field === "rangeEnd") {
+    state.scheduleDraftRangeEnd = value;
+    return;
+  }
+  state.scheduleDraftOtherDate = value;
+  state.scheduleDraftDateMode = "other";
+}
+
+function openScheduleCalendar(field) {
+  state.scheduleCalendarField = state.scheduleCalendarField === field ? "" : field;
+  if (state.scheduleCalendarField) {
+    state.scheduleCalendarMonth = scheduleDateValue(field).slice(0, 7);
+  }
+  state.scheduleDropdown = "";
+  openScheduleConfigurationModal({ preserveDraft: true });
+}
+
+function shiftScheduleCalendar(amount, unit = "month") {
+  const base = dateFromIso(`${state.scheduleCalendarMonth || todayIso().slice(0, 7)}-01`);
+  if (unit === "year") base.setFullYear(base.getFullYear() + amount);
+  else base.setMonth(base.getMonth() + amount);
+  state.scheduleCalendarMonth = isoDateFromLocal(base).slice(0, 7);
+  openScheduleConfigurationModal({ preserveDraft: true });
+}
+
+function renderScheduleDateField({ field, label }) {
+  const value = scheduleDateValue(field);
+  return `
+    <label class="schedule-field date-picker">
+      <span>${label}</span>
+      <button type="button" class="input schedule-date-trigger" data-schedule-calendar="${field}">
+        <span>${escapeText(value || "mm/dd/yyyy")}</span>
+        ${icon("calendar_today")}
+      </button>
+      ${state.scheduleCalendarField === field ? renderScheduleCalendar(field) : ""}
+    </label>
+  `;
+}
+
+function renderScheduleCalendar(field) {
+  const selected = scheduleDateValue(field) || todayIso();
+  const viewDate = dateFromIso(`${state.scheduleCalendarMonth || selected.slice(0, 7)}-01`);
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const start = new Date(year, month, 1);
+  start.setDate(start.getDate() - start.getDay());
+  const monthLabel = viewDate.toLocaleString("en-US", { month: "short" });
+  const cells = Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    const iso = isoDateFromLocal(date);
+    const currentMonth = date.getMonth() === month;
+    return `
+      <button type="button" class="schedule-calendar-day ${currentMonth ? "" : "muted"} ${iso === selected ? "selected" : ""}" data-schedule-date="${iso}">
+        ${date.getDate()}
+      </button>
+    `;
+  }).join("");
+  return `
+    <div class="schedule-calendar" role="dialog" aria-label="Choose date">
+      <div class="schedule-calendar-header">
+        <div class="schedule-calendar-control">
+          <button type="button" data-schedule-calendar-nav="-1" data-schedule-calendar-unit="month">${icon("chevron_left")}</button>
+          <span>${monthLabel} ${icon("arrow_drop_down")}</span>
+          <button type="button" data-schedule-calendar-nav="1" data-schedule-calendar-unit="month">${icon("chevron_right")}</button>
+        </div>
+        <div class="schedule-calendar-control">
+          <button type="button" data-schedule-calendar-nav="-1" data-schedule-calendar-unit="year">${icon("chevron_left")}</button>
+          <span>${year} ${icon("arrow_drop_down")}</span>
+          <button type="button" data-schedule-calendar-nav="1" data-schedule-calendar-unit="year">${icon("chevron_right")}</button>
+        </div>
+      </div>
+      <div class="schedule-calendar-weekdays">${["S", "M", "T", "W", "T", "F", "S"].map((day) => `<span>${day}</span>`).join("")}</div>
+      <div class="schedule-calendar-grid">${cells}</div>
+    </div>
+  `;
 }
 
 function renderScheduleAlert() {
@@ -1968,6 +2125,8 @@ function openActivateAudienceModal() {
 function openScheduleConfigurationModal(options = {}) {
   if (!options.preserveDraft) {
     hydrateScheduleDraft();
+    state.scheduleDropdown = "";
+    state.scheduleCalendarField = "";
   }
   applyScheduleDraftDefaults();
   const showOnceDate = state.scheduleDraftFrequency === "Once";
@@ -1982,18 +2141,21 @@ function openScheduleConfigurationModal(options = {}) {
         </header>
         <div class="schedule-modal-body">
           <p>Choose when the audience should refresh</p>
-          <label class="builder-dialog-field schedule-frequency-field">
-            <span>Refresh frequency</span>
-            <select class="select" id="scheduleFrequency">
-              <option value="">Refresh frequency</option>
-              ${activationFrequencyOptions().map((item) => `<option value="${escapeAttr(item.value)}" ${state.scheduleDraftFrequency === item.value ? "selected" : ""}>${item.label} (${item.hint})</option>`).join("")}
-            </select>
-            <small>Choose how often this audience should refresh.</small>
-          </label>
+          <div class="schedule-frequency-field">
+            ${renderScheduleDropdown({
+              key: "frequency",
+              label: "Refresh frequency",
+              placeholder: "Refresh frequency",
+              value: state.scheduleDraftFrequency,
+              options: activationFrequencyOptions(),
+              help: "Choose how often this audience should refresh."
+            })}
+          </div>
           ${state.scheduleDraftFrequency ? `
             <div class="schedule-divider"></div>
             ${showAudienceRange ? renderRecurringScheduleFields() : ""}
             ${showOnceDate ? renderOnceScheduleFields() : ""}
+            ${renderScheduleTimeDatalist()}
           ` : ""}
         </div>
         <footer class="schedule-modal-footer">
@@ -2008,52 +2170,46 @@ function openScheduleConfigurationModal(options = {}) {
 function renderRecurringScheduleFields() {
   return `
     <div class="schedule-grid">
-      <label class="schedule-field">
-        <span>Start Date</span>
-        <input class="input" id="scheduleRangeStart" type="date" value="${escapeAttr(state.scheduleDraftRangeStart)}" />
-      </label>
+      ${renderScheduleDateField({ field: "rangeStart", label: "Start Date" })}
       <label class="schedule-field">
         <span>Time</span>
-        <input class="input" id="scheduleStartTime" type="time" step="60" value="${escapeAttr(state.scheduleDraftStartTime)}" />
+        <input class="input" id="scheduleStartTime" type="text" list="scheduleTimeOptions" inputmode="numeric" pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$" placeholder="09:00" value="${escapeAttr(state.scheduleDraftStartTime)}" />
       </label>
-      <label class="schedule-field">
-        <span>End Date</span>
-        <input class="input" id="scheduleRangeEnd" type="date" value="${escapeAttr(state.scheduleDraftRangeEnd)}" min="${escapeAttr(state.scheduleDraftRangeStart)}" />
-      </label>
+      ${renderScheduleDateField({ field: "rangeEnd", label: "End Date" })}
       <label class="schedule-field">
         <span>Time</span>
-        <input class="input" id="scheduleEndTime" type="time" step="60" value="${escapeAttr(state.scheduleDraftEndTime)}" />
+        <input class="input" id="scheduleEndTime" type="text" list="scheduleTimeOptions" inputmode="numeric" pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$" placeholder="09:00" value="${escapeAttr(state.scheduleDraftEndTime)}" />
       </label>
-      <label class="schedule-field timezone">
-        <span>Time zone</span>
-        <select class="select" id="scheduleTimezone">
-          <option value="">Selects</option>
-          ${scheduleTimezoneOptions().map((zone) => `<option value="${escapeAttr(zone)}" ${state.scheduleDraftTimezone === zone ? "selected" : ""}>${zone}</option>`).join("")}
-        </select>
-      </label>
+      <div class="schedule-field timezone">
+        ${renderScheduleDropdown({
+          key: "timezone",
+          label: "Time zone",
+          placeholder: "Selects",
+          value: state.scheduleDraftTimezone,
+          options: scheduleTimezoneOptions()
+        })}
+      </div>
     </div>
   `;
 }
 
 function renderOnceScheduleFields() {
-  const selectedDate = state.scheduleDraftOtherDate || todayIso();
   return `
     <div class="schedule-grid once">
-      <label class="schedule-field">
-        <span>Date</span>
-        <input class="input" id="scheduleOtherDate" type="date" value="${escapeAttr(selectedDate)}" />
-      </label>
+      ${renderScheduleDateField({ field: "onceDate", label: "Date" })}
       <label class="schedule-field">
         <span>Time</span>
-        <input class="input" id="scheduleStartTime" type="time" step="60" value="${escapeAttr(state.scheduleDraftStartTime)}" />
+        <input class="input" id="scheduleStartTime" type="text" list="scheduleTimeOptions" inputmode="numeric" pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$" placeholder="09:00" value="${escapeAttr(state.scheduleDraftStartTime)}" />
       </label>
-      <label class="schedule-field timezone">
-        <span>Time zone</span>
-        <select class="select" id="scheduleTimezone">
-          <option value="">Selects</option>
-          ${scheduleTimezoneOptions().map((zone) => `<option value="${escapeAttr(zone)}" ${state.scheduleDraftTimezone === zone ? "selected" : ""}>${zone}</option>`).join("")}
-        </select>
-      </label>
+      <div class="schedule-field timezone">
+        ${renderScheduleDropdown({
+          key: "timezone",
+          label: "Time zone",
+          placeholder: "Selects",
+          value: state.scheduleDraftTimezone,
+          options: scheduleTimezoneOptions()
+        })}
+      </div>
     </div>
   `;
 }
@@ -2176,6 +2332,38 @@ document.addEventListener("click", (event) => {
     commitScheduleDraft();
     closeModal();
     renderAudienceBuilder();
+  }
+  if (target.dataset.toggleScheduleMenu) {
+    const menu = target.dataset.toggleScheduleMenu;
+    state.scheduleDropdown = state.scheduleDropdown === menu ? "" : menu;
+    state.scheduleCalendarField = "";
+    openScheduleConfigurationModal({ preserveDraft: true });
+  }
+  if (target.dataset.scheduleOption) {
+    const key = target.dataset.scheduleOption;
+    const value = target.dataset.scheduleValue;
+    if (key === "frequency") {
+      state.scheduleDraftFrequency = value;
+      if (state.scheduleDraftFrequency === "Once") {
+        state.scheduleDraftDateMode = "other";
+        state.scheduleDraftOtherDate = state.scheduleDraftOtherDate || todayIso();
+      }
+      applyScheduleDraftDefaults();
+    }
+    if (key === "timezone") state.scheduleDraftTimezone = value;
+    state.scheduleDropdown = "";
+    openScheduleConfigurationModal({ preserveDraft: true });
+  }
+  if (target.dataset.scheduleCalendar) {
+    openScheduleCalendar(target.dataset.scheduleCalendar);
+  }
+  if (target.dataset.scheduleCalendarNav) {
+    shiftScheduleCalendar(Number(target.dataset.scheduleCalendarNav), target.dataset.scheduleCalendarUnit || "month");
+  }
+  if (target.dataset.scheduleDate) {
+    setScheduleDateValue(state.scheduleCalendarField, target.dataset.scheduleDate);
+    state.scheduleCalendarField = "";
+    openScheduleConfigurationModal({ preserveDraft: true });
   }
   if (target.dataset.action === "activate-audience-flow") openActivateAudienceModal();
   if (target.dataset.action === "confirm-activate-audience") saveAudience("activated");
@@ -2405,13 +2593,15 @@ document.addEventListener("change", (event) => {
     openScheduleConfigurationModal({ preserveDraft: true });
   }
   if (event.target.id === "scheduleStartTime") {
-    state.scheduleDraftStartTime = event.target.value;
-    if (!state.scheduleDraftEndTime) state.scheduleDraftEndTime = event.target.value;
-    openScheduleConfigurationModal({ preserveDraft: true });
+    state.scheduleDraftStartTime = normalizeScheduleTime(event.target.value);
+    event.target.value = state.scheduleDraftStartTime;
+    if (!state.scheduleDraftEndTime) state.scheduleDraftEndTime = state.scheduleDraftStartTime;
+    document.querySelector("[data-action='save-schedule-config']")?.toggleAttribute("disabled", !scheduleDraftReady());
   }
   if (event.target.id === "scheduleEndTime") {
-    state.scheduleDraftEndTime = event.target.value;
-    openScheduleConfigurationModal({ preserveDraft: true });
+    state.scheduleDraftEndTime = normalizeScheduleTime(event.target.value);
+    event.target.value = state.scheduleDraftEndTime;
+    document.querySelector("[data-action='save-schedule-config']")?.toggleAttribute("disabled", !scheduleDraftReady());
   }
   if (event.target.id === "scheduleTimezone") {
     state.scheduleDraftTimezone = event.target.value;
@@ -2449,6 +2639,14 @@ document.addEventListener("input", (event) => {
     state.activationAudienceName = event.target.value;
     const counter = document.getElementById("audienceNameCounter");
     if (counter) counter.textContent = `${event.target.value.length}/80`;
+  }
+  if (event.target.id === "scheduleStartTime") {
+    state.scheduleDraftStartTime = normalizeScheduleTime(event.target.value);
+    document.querySelector("[data-action='save-schedule-config']")?.toggleAttribute("disabled", !scheduleDraftReady());
+  }
+  if (event.target.id === "scheduleEndTime") {
+    state.scheduleDraftEndTime = normalizeScheduleTime(event.target.value);
+    document.querySelector("[data-action='save-schedule-config']")?.toggleAttribute("disabled", !scheduleDraftReady());
   }
   if (event.target.dataset.conditionValue !== undefined) {
     state.audienceBuilderConditions[Number(event.target.dataset.conditionValue)].value = event.target.value;
