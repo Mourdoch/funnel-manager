@@ -1948,14 +1948,13 @@ tbody tr:hover { background: #fafbff; }
 .activation-card {
   min-height: 132px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 8px;
   background: var(--surface);
-  padding: 12px;
+  padding: 0;
   overflow: hidden;
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   align-items: stretch;
-  gap: 12px;
   text-align: left;
   color: var(--text);
   position: relative;
@@ -1972,20 +1971,22 @@ tbody tr:hover { background: #fafbff; }
 }
 .activation-content {
   min-width: 0;
-  display: grid;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   align-content: start;
-  gap: 12px;
-  padding-right: 28px;
 }
 .activation-card-head {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 0;
+  min-height: 69px;
+  padding: 10px 48px 4px 16px;
 }
 .activation-avatar {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -1994,24 +1995,32 @@ tbody tr:hover { background: #fafbff; }
   flex: 0 0 auto;
 }
 .activation-avatar .material-symbols-outlined {
-  font-size: 21px;
+  font-size: 16px;
 }
 .activation-card-head strong {
   display: block;
-  font-size: var(--text-subtitle-1-size);
-  line-height: var(--text-subtitle-1-line);
-  font-weight: var(--text-subtitle-1-weight);
+  font-size: 14px;
+  line-height: 16px;
+  font-weight: 600;
 }
 .activation-card-head small,
 .activation-copy {
   color: var(--muted);
-  font-size: var(--text-body-2-size);
-  line-height: var(--text-body-2-line);
+  font-size: 13px;
+  line-height: 16px;
   margin-top: -2px;
 }
 .activation-card-head small {
   display: block;
-  margin-top: 2px;
+  margin-top: 8px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activation-copy {
+  display: block;
+  padding: 16px;
 }
 .activation-type-chip {
   width: fit-content;
@@ -2031,6 +2040,49 @@ tbody tr:hover { background: #fafbff; }
 .activation-type-chip .material-symbols-outlined {
   font-size: 16px;
 }
+.activation-card-config {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 16px 16px;
+}
+.activation-config-chip {
+  max-width: 100%;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+  padding: 4px 12px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+}
+.activation-config-chip span:not(.material-symbols-outlined) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activation-config-chip .material-symbols-outlined {
+  flex: 0 0 auto;
+  font-size: 16px;
+}
+.activation-config-chip.selected-option,
+.activation-config-chip.selected-schedule {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.activation-config-chip.selected-schedule {
+  width: 100%;
+}
+.activation-config-chip.missing-schedule {
+  background: rgba(28, 27, 31, .12);
+  color: var(--text);
+}
 .activation-card-actions {
   justify-self: start;
   display: inline-flex;
@@ -2049,8 +2101,8 @@ tbody tr:hover { background: #fafbff; }
 }
 .activation-check {
   position: absolute;
-  right: 10px;
-  top: 10px;
+  right: 18px;
+  top: 22px;
   color: var(--primary);
 }
 .activation-check .material-symbols-outlined {
@@ -2077,6 +2129,14 @@ tbody tr:hover { background: #fafbff; }
 .audience-builder-dialog {
   width: min(460px, 100%);
 }
+.activation-setup-modal {
+  width: min(500px, calc(100vw - 32px));
+  height: min(550px, calc(100vh - 32px));
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+}
 .modal-header, .modal-footer {
   padding: 18px 24px;
   display: flex;
@@ -2087,6 +2147,204 @@ tbody tr:hover { background: #fafbff; }
 }
 .modal-footer { border-top: 1px solid var(--line); border-bottom: 0; position: sticky; bottom: 0; background: #fff; }
 .modal-body { padding: 22px 24px; display: grid; gap: 18px; }
+.activation-setup-modal .activation-type-header {
+  flex: 0 0 auto;
+  align-items: flex-start;
+  border-bottom: 0;
+  padding: 16px 16px 10px;
+}
+.activation-setup-modal .activation-type-header h2 {
+  margin: 0;
+  max-width: 410px;
+  font-size: 14px;
+  line-height: 16px;
+  font-weight: 600;
+}
+.activation-setup-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 8px 0 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+.activation-setup-tabs button {
+  min-width: 90px;
+  min-height: 36px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text);
+  padding: 0 16px;
+  border-radius: 8px 8px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+}
+.activation-setup-tabs button.active {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.activation-setup-tabs button:disabled {
+  opacity: .42;
+}
+.activation-setup-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: visible;
+  padding: 16px;
+}
+.activation-setup-modal .activation-type-options {
+  gap: 0;
+  padding: 0;
+  align-content: start;
+}
+.activation-setup-modal .activation-type-option {
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(28, 33, 40, .6);
+  padding: 0;
+  gap: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+.activation-setup-modal .activation-type-option.selected {
+  background: transparent;
+  color: var(--text);
+}
+.activation-setup-modal .activation-type-option .material-symbols-outlined {
+  width: 40px;
+  height: 40px;
+  display: inline-grid;
+  place-items: center;
+  color: #7b818a;
+  font-size: 16px;
+  flex: 0 0 40px;
+}
+.activation-setup-modal .activation-type-option.selected .material-symbols-outlined {
+  color: var(--primary);
+}
+.activation-setup-footer {
+  flex: 0 0 auto;
+  min-height: 52px;
+  margin-top: auto;
+  padding: 8px 16px 16px;
+  border-top: 0;
+}
+.activation-setup-footer .button {
+  min-width: 0;
+  min-height: 36px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.schedule-setup-panel {
+  display: grid;
+  gap: 20px;
+  align-content: start;
+  justify-items: start;
+  overflow: visible;
+}
+.schedule-fixed-top {
+  position: sticky;
+  top: -16px;
+  z-index: 5;
+  width: 100%;
+  display: grid;
+  gap: 20px;
+  justify-items: start;
+  padding: 16px 0 0;
+  background: var(--surface);
+}
+.schedule-fixed-top > p {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 16px;
+}
+.schedule-inline-error {
+  margin: -4px 0 0;
+  color: #c62828;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-line);
+}
+.activation-setup-modal .schedule-frequency-field {
+  width: 100%;
+  justify-self: stretch;
+}
+.activation-setup-modal .schedule-frequency-field .builder-dialog-field > span {
+  display: none;
+}
+.activation-setup-modal .schedule-frequency-field .field-trigger {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #d6dbe4;
+  border-radius: 8px;
+  background: var(--field);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 24px;
+  font-weight: 400;
+  justify-content: space-between;
+}
+.activation-setup-modal .schedule-frequency-field .field-trigger .material-symbols-outlined {
+  color: #8c9097;
+  font-size: 16px;
+}
+.activation-setup-modal .schedule-frequency-field .field-trigger:not(.has-value) span {
+  color: rgba(28, 33, 40, .62);
+}
+.activation-setup-modal .schedule-grid,
+.activation-setup-modal .schedule-grid.once {
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+  overflow: visible;
+}
+.activation-setup-modal #scheduleStartTime,
+.activation-setup-modal #scheduleEndTime {
+  width: 100%;
+  max-width: none;
+}
+.activation-setup-modal .schedule-field.timezone,
+.activation-setup-modal .schedule-grid.once .schedule-field.timezone {
+  width: 100%;
+  grid-column: 1 / -1;
+}
+.activation-setup-modal .schedule-field,
+.activation-setup-modal .schedule-field.date-picker,
+.activation-setup-modal .schedule-menu-field,
+.activation-setup-modal .menu-field {
+  overflow: visible;
+}
+.activation-setup-modal .schedule-date-trigger,
+.activation-setup-modal .schedule-field .input,
+.activation-setup-modal .schedule-field .select,
+.activation-setup-modal .schedule-menu-field .field-trigger,
+.activation-setup-modal .field-menu,
+.activation-setup-modal .schedule-calendar {
+  border-radius: 8px;
+}
+.activation-setup-modal .schedule-field.timezone .schedule-menu-field,
+.activation-setup-modal .schedule-field.timezone .field-trigger {
+  width: 100%;
+}
+.activation-setup-modal .schedule-calendar {
+  width: min(316px, calc(100vw - 64px));
+  z-index: 140;
+}
+.activation-setup-modal .field-menu {
+  z-index: 140;
+}
+.activation-setup-modal .schedule-menu-field .field-menu {
+  z-index: 140;
+}
 .activation-type-header h2,
 .audience-builder-dialog-header h2,
 .activate-modal-header h2 {
@@ -2117,6 +2375,15 @@ tbody tr:hover { background: #fafbff; }
 .activation-date-choice.selected {
   background: var(--button-primary-soft);
   color: var(--button-primary);
+}
+.activation-setup-modal .activation-type-option:hover,
+.activation-setup-modal .activation-type-option:focus-visible,
+.activation-setup-modal .activation-type-option.selected {
+  background: transparent;
+}
+.activation-setup-modal .activation-type-option:focus-visible {
+  outline: 2px solid rgba(74, 97, 224, .22);
+  outline-offset: -2px;
 }
 .activation-type-option .material-symbols-outlined,
 .activation-date-choice .material-symbols-outlined {
