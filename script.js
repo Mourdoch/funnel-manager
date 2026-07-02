@@ -67,6 +67,11 @@ const state = {
   scheduleDropdown: "",
   scheduleCalendarField: "",
   scheduleCalendarMonth: "",
+  scheduleCalendarView: "days",
+  scheduleCalendarPlacement: "bottom",
+  scheduleCalendarDraftDate: "",
+  scheduleCalendarDraftHour: "09",
+  scheduleCalendarDraftMinute: "00",
   audienceBuilderResult: null,
   lastAudienceName: "",
   audiences: [
@@ -1846,6 +1851,10 @@ function resetScheduleDraft() {
   state.scheduleDropdown = "";
   state.scheduleCalendarField = "";
   state.scheduleCalendarMonth = "";
+  state.scheduleCalendarView = "days";
+  state.scheduleCalendarDraftDate = "";
+  state.scheduleCalendarDraftHour = "09";
+  state.scheduleCalendarDraftMinute = "00";
 }
 
 function hydrateScheduleDraft() {
@@ -1862,21 +1871,35 @@ function hydrateScheduleDraft() {
 function applyScheduleDraftDefaults() {
   if (state.scheduleDraftFrequency === "Once") {
     state.scheduleDraftDateMode = "other";
-    state.scheduleDraftOtherDate = state.scheduleDraftOtherDate || todayIso();
     state.scheduleDraftStartTime = state.scheduleDraftStartTime || "09:00";
   } else if (state.scheduleDraftFrequency) {
-    state.scheduleDraftRangeStart = state.scheduleDraftRangeStart || todayIso();
     state.scheduleDraftStartTime = state.scheduleDraftStartTime || "09:00";
   }
 }
 
+function scheduleDateTimeKey(date, time) {
+  if (!date || !scheduleTimeReady(time)) return "";
+  return `${date}T${time}`;
+}
+
+function scheduleEndIsValid(startDate, startTime, endDate, endTime) {
+  if (!endDate) return true;
+  const startKey = scheduleDateTimeKey(startDate, startTime);
+  const endKey = scheduleDateTimeKey(endDate, endTime);
+  return Boolean(startKey && endKey && endKey >= startKey);
+}
+
 function scheduleDraftReady() {
-  if (!state.scheduleDraftFrequency) return false;
-  if (!scheduleTimeReady(state.scheduleDraftStartTime) || !state.scheduleDraftTimezone) return false;
+  if (!state.scheduleDraftFrequency || !state.scheduleDraftTimezone) return false;
+  if (!scheduleTimeReady(state.scheduleDraftStartTime)) return false;
   if (draftUsesAudienceRange()) {
     if (!state.scheduleDraftRangeStart) return false;
-    if (!state.scheduleDraftRangeEnd) return true;
-    return state.scheduleDraftRangeEnd >= state.scheduleDraftRangeStart && scheduleTimeReady(state.scheduleDraftEndTime);
+    return scheduleEndIsValid(
+      state.scheduleDraftRangeStart,
+      state.scheduleDraftStartTime,
+      state.scheduleDraftRangeEnd,
+      state.scheduleDraftEndTime
+    );
   }
   if (state.scheduleDraftDateMode === "other") return Boolean(state.scheduleDraftOtherDate);
   return true;
@@ -1894,12 +1917,16 @@ function commitScheduleDraft() {
 }
 
 function activationScheduleReady() {
-  if (!state.activationFrequency) return false;
-  if (!scheduleTimeReady(state.activationScheduleStartTime) || !state.activationScheduleTimezone) return false;
+  if (!state.activationFrequency || !state.activationScheduleTimezone) return false;
+  if (!scheduleTimeReady(state.activationScheduleStartTime)) return false;
   if (usesAudienceRange()) {
     if (!state.activationRangeStart) return false;
-    if (!state.activationRangeEnd) return true;
-    return state.activationRangeEnd >= state.activationRangeStart && scheduleTimeReady(state.activationScheduleEndTime);
+    return scheduleEndIsValid(
+      state.activationRangeStart,
+      state.activationScheduleStartTime,
+      state.activationRangeEnd,
+      state.activationScheduleEndTime
+    );
   }
   if (state.activationDateMode === "other") return Boolean(state.activationOtherDate);
   return true;
@@ -1964,13 +1991,16 @@ function clearActivationSchedule() {
 function scheduleDateValue(field) {
   if (field === "rangeStart") return state.scheduleDraftRangeStart;
   if (field === "rangeEnd") return state.scheduleDraftRangeEnd;
-  return state.scheduleDraftOtherDate || todayIso();
+  return state.scheduleDraftOtherDate;
+}
+
+function scheduleTimeValue(field) {
+  return field === "rangeEnd" ? state.scheduleDraftEndTime : state.scheduleDraftStartTime;
 }
 
 function setScheduleDateValue(field, value) {
   if (field === "rangeStart") {
     state.scheduleDraftRangeStart = value;
-    if (state.scheduleDraftRangeEnd && state.scheduleDraftRangeEnd < value) state.scheduleDraftRangeEnd = value;
     return;
   }
   if (field === "rangeEnd") {
@@ -1981,20 +2011,157 @@ function setScheduleDateValue(field, value) {
   state.scheduleDraftDateMode = "other";
 }
 
-function openScheduleCalendar(field) {
-  state.scheduleCalendarField = state.scheduleCalendarField === field ? "" : field;
-  if (state.scheduleCalendarField) {
-    state.scheduleCalendarMonth = scheduleDateValue(field).slice(0, 7);
+function setScheduleTimeValue(field, value) {
+  if (field === "rangeEnd") state.scheduleDraftEndTime = value;
+  else state.scheduleDraftStartTime = value;
+}
+
+function splitScheduleTime(value, fallback = "09:00") {
+  const normalized = scheduleTimeReady(value) ? value : fallback;
+  const [hour = "09", minute = "00"] = normalized.split(":");
+  return { hour, minute };
+}
+
+function scheduleFieldPlaceholder(field) {
+  if (field === "rangeStart") return "Start Date";
+  if (field === "rangeEnd") return "End Date";
+  return "Run Date";
+}
+
+function formatScheduleDateTime(date, time) {
+  if (!date) return "";
+  const formattedDate = dateFromIso(date).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
+  return `${formattedDate}, ${scheduleTimeReady(time) ? time : "09:00"}`;
+}
+
+function scheduleDateFieldInvalid(field) {
+  if (field !== "rangeEnd" || !state.scheduleDraftRangeEnd) return false;
+  return !scheduleEndIsValid(
+    state.scheduleDraftRangeStart,
+    state.scheduleDraftStartTime,
+    state.scheduleDraftRangeEnd,
+    state.scheduleDraftEndTime
+  );
+}
+
+function resetScheduleCalendarUi() {
+  state.scheduleCalendarField = "";
+  state.scheduleCalendarMonth = "";
+  state.scheduleCalendarView = "days";
+  state.scheduleCalendarPlacement = "bottom";
+  state.scheduleCalendarDraftDate = "";
+  state.scheduleCalendarDraftHour = "09";
+  state.scheduleCalendarDraftMinute = "00";
+}
+
+function getScheduleCalendarPlacement(trigger) {
+  if (!trigger || typeof window === "undefined") return "bottom";
+  const rect = trigger.getBoundingClientRect();
+  const estimatedHeight = 390;
+  const estimatedWidth = 360;
+  const gutter = 16;
+  const below = window.innerHeight - rect.bottom - gutter;
+  const above = rect.top - gutter;
+  const right = window.innerWidth - rect.right - gutter;
+  if (below >= estimatedHeight) return "bottom";
+  if (above >= estimatedHeight) return "top";
+  if (right >= estimatedWidth + 12) return "side-right";
+  return "fixed";
+}
+
+function openScheduleCalendar(field, trigger) {
+  if (state.scheduleCalendarField === field) {
+    resetScheduleCalendarUi();
+    rerenderScheduleHost();
+    return;
   }
+
+  const savedDate = scheduleDateValue(field);
+  const fallbackDate = field === "rangeEnd"
+    ? (savedDate || state.scheduleDraftRangeStart || todayIso())
+    : (savedDate || todayIso());
+  const fallbackTime = field === "rangeEnd"
+    ? (scheduleTimeValue(field) || state.scheduleDraftStartTime || "09:00")
+    : (scheduleTimeValue(field) || "09:00");
+  const { hour, minute } = splitScheduleTime(fallbackTime);
+
+  state.scheduleCalendarField = field;
+  state.scheduleCalendarMonth = fallbackDate.slice(0, 7);
+  state.scheduleCalendarView = "days";
+  state.scheduleCalendarPlacement = getScheduleCalendarPlacement(trigger);
+  state.scheduleCalendarDraftDate = fallbackDate;
+  state.scheduleCalendarDraftHour = hour;
+  state.scheduleCalendarDraftMinute = minute;
   state.scheduleDropdown = "";
   rerenderScheduleHost();
 }
 
+function cancelScheduleCalendar() {
+  resetScheduleCalendarUi();
+  rerenderScheduleHost();
+}
+
+function scheduleCalendarDraftTime() {
+  return `${String(state.scheduleCalendarDraftHour || "00").padStart(2, "0")}:${String(state.scheduleCalendarDraftMinute || "00").padStart(2, "0")}`;
+}
+
+function scheduleCalendarDraftReady() {
+  if (!state.scheduleCalendarDraftDate || !scheduleTimeReady(scheduleCalendarDraftTime())) return false;
+  if (state.scheduleCalendarField !== "rangeEnd") return true;
+  return scheduleEndIsValid(
+    state.scheduleDraftRangeStart,
+    state.scheduleDraftStartTime,
+    state.scheduleCalendarDraftDate,
+    scheduleCalendarDraftTime()
+  );
+}
+
+function confirmScheduleCalendar() {
+  const field = state.scheduleCalendarField;
+  if (!field || !scheduleCalendarDraftReady()) return;
+  setScheduleDateValue(field, state.scheduleCalendarDraftDate);
+  setScheduleTimeValue(field, scheduleCalendarDraftTime());
+  resetScheduleCalendarUi();
+  rerenderScheduleHost();
+}
+
 function shiftScheduleCalendar(amount, unit = "month") {
-  const base = dateFromIso(`${state.scheduleCalendarMonth || todayIso().slice(0, 7)}-01`);
+  const base = dateFromIso(`${state.scheduleCalendarMonth || state.scheduleCalendarDraftDate.slice(0, 7) || todayIso().slice(0, 7)}-01`);
   if (unit === "year") base.setFullYear(base.getFullYear() + amount);
   else base.setMonth(base.getMonth() + amount);
   state.scheduleCalendarMonth = isoDateFromLocal(base).slice(0, 7);
+  rerenderScheduleHost();
+}
+
+function setScheduleCalendarView(view) {
+  state.scheduleCalendarView = state.scheduleCalendarView === view ? "days" : view;
+  rerenderScheduleHost();
+}
+
+function clampCalendarDraftDate(year, month) {
+  const current = dateFromIso(state.scheduleCalendarDraftDate || todayIso());
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const day = Math.min(current.getDate(), lastDay);
+  const next = new Date(year, month, day);
+  state.scheduleCalendarDraftDate = isoDateFromLocal(next);
+  state.scheduleCalendarMonth = state.scheduleCalendarDraftDate.slice(0, 7);
+}
+
+function selectScheduleCalendarMonth(month) {
+  const viewDate = dateFromIso(`${state.scheduleCalendarMonth || todayIso().slice(0, 7)}-01`);
+  clampCalendarDraftDate(viewDate.getFullYear(), Number(month));
+  state.scheduleCalendarView = "days";
+  rerenderScheduleHost();
+}
+
+function selectScheduleCalendarYear(year) {
+  const viewDate = dateFromIso(`${state.scheduleCalendarMonth || todayIso().slice(0, 7)}-01`);
+  clampCalendarDraftDate(Number(year), viewDate.getMonth());
+  state.scheduleCalendarView = "days";
   rerenderScheduleHost();
 }
 
@@ -2005,53 +2172,127 @@ function rerenderScheduleHost() {
 
 function renderScheduleDateField({ field, label }) {
   const value = scheduleDateValue(field);
+  const time = scheduleTimeValue(field);
+  const displayValue = value ? formatScheduleDateTime(value, time) : scheduleFieldPlaceholder(field);
+  const invalid = scheduleDateFieldInvalid(field);
+  const timezone = state.scheduleDraftTimezone;
   return `
-    <label class="schedule-field date-picker">
-      <span>${label}</span>
-      <button type="button" class="input schedule-date-trigger" data-schedule-calendar="${field}">
-        <span>${escapeText(value || "mm/dd/yyyy")}</span>
-        ${icon("calendar_today")}
+    <div class="schedule-field date-picker schedule-date-picker ${invalid ? "invalid" : ""}">
+      <span class="schedule-date-floating-label">${label}</span>
+      <button type="button" class="schedule-date-trigger ${value ? "has-value" : ""}" data-schedule-calendar="${field}" aria-expanded="${state.scheduleCalendarField === field}">
+        <span class="schedule-date-trigger-main">
+          ${icon("calendar_today")}
+          <span class="schedule-date-value">${escapeText(displayValue)}</span>
+        </span>
+        ${timezone ? `<span class="schedule-timezone-pill">${escapeText(timezone)}</span>` : ""}
       </button>
+      ${invalid ? `<small class="schedule-date-error">End date and time must be after the start date and time.</small>` : ""}
       ${state.scheduleCalendarField === field ? renderScheduleCalendar(field) : ""}
-    </label>
+    </div>
   `;
 }
 
-function renderScheduleCalendar(field) {
-  const selected = scheduleDateValue(field) || todayIso();
-  const viewDate = dateFromIso(`${state.scheduleCalendarMonth || selected.slice(0, 7)}-01`);
+function renderScheduleCalendarDays(viewDate) {
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
   const start = new Date(year, month, 1);
   start.setDate(start.getDate() - start.getDay());
-  const monthLabel = viewDate.toLocaleString("en-US", { month: "short" });
   const cells = Array.from({ length: 42 }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
     const iso = isoDateFromLocal(date);
     const currentMonth = date.getMonth() === month;
     return `
-      <button type="button" class="schedule-calendar-day ${currentMonth ? "" : "muted"} ${iso === selected ? "selected" : ""}" data-schedule-date="${iso}">
+      <button type="button" class="schedule-calendar-day ${currentMonth ? "" : "muted"} ${iso === state.scheduleCalendarDraftDate ? "selected" : ""}" data-schedule-date="${iso}" aria-pressed="${iso === state.scheduleCalendarDraftDate}">
         ${date.getDate()}
       </button>
     `;
   }).join("");
   return `
-    <div class="schedule-calendar" role="dialog" aria-label="Choose date">
-      <div class="schedule-calendar-header">
-        <div class="schedule-calendar-control">
-          <button type="button" data-schedule-calendar-nav="-1" data-schedule-calendar-unit="month">${icon("chevron_left")}</button>
-          <span>${monthLabel} ${icon("arrow_drop_down")}</span>
-          <button type="button" data-schedule-calendar-nav="1" data-schedule-calendar-unit="month">${icon("chevron_right")}</button>
-        </div>
-        <div class="schedule-calendar-control">
-          <button type="button" data-schedule-calendar-nav="-1" data-schedule-calendar-unit="year">${icon("chevron_left")}</button>
-          <span>${year} ${icon("arrow_drop_down")}</span>
-          <button type="button" data-schedule-calendar-nav="1" data-schedule-calendar-unit="year">${icon("chevron_right")}</button>
-        </div>
-      </div>
+    <div class="schedule-calendar-days-view">
       <div class="schedule-calendar-weekdays">${["S", "M", "T", "W", "T", "F", "S"].map((day) => `<span>${day}</span>`).join("")}</div>
       <div class="schedule-calendar-grid">${cells}</div>
+    </div>
+  `;
+}
+
+function renderScheduleCalendarMonths(viewDate) {
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
+  const selectedDate = dateFromIso(state.scheduleCalendarDraftDate || todayIso());
+  return `
+    <div class="schedule-calendar-months-view">
+      ${monthNames.map((month, index) => `
+        <button type="button" class="schedule-calendar-choice ${selectedDate.getFullYear() === viewDate.getFullYear() && selectedDate.getMonth() === index ? "selected" : ""}" data-schedule-calendar-month="${index}">
+          ${month}
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderScheduleCalendarYears(viewDate) {
+  const selectedYear = dateFromIso(state.scheduleCalendarDraftDate || todayIso()).getFullYear();
+  const firstYear = Math.max(2000, viewDate.getFullYear());
+  const years = Array.from({ length: 30 }, (_, index) => firstYear + index);
+  return `
+    <div class="schedule-calendar-years-view">
+      ${years.map((year) => `
+        <button type="button" class="schedule-calendar-choice ${selectedYear === year ? "selected" : ""}" data-schedule-calendar-year="${year}">
+          ${year}
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderScheduleCalendar(field) {
+  const selected = state.scheduleCalendarDraftDate || scheduleDateValue(field) || todayIso();
+  const viewDate = dateFromIso(`${state.scheduleCalendarMonth || selected.slice(0, 7)}-01`);
+  const year = viewDate.getFullYear();
+  const monthLabel = viewDate.toLocaleString("en-US", { month: "short" });
+  const hours = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, "0"));
+  const minutes = Array.from({ length: 60 }, (_, minute) => String(minute).padStart(2, "0"));
+  const content = state.scheduleCalendarView === "months"
+    ? renderScheduleCalendarMonths(viewDate)
+    : state.scheduleCalendarView === "years"
+      ? renderScheduleCalendarYears(viewDate)
+      : renderScheduleCalendarDays(viewDate);
+
+  return `
+    <div class="schedule-calendar ${state.scheduleCalendarPlacement || "bottom"}" role="dialog" aria-label="Choose date and time">
+      <div class="schedule-calendar-header">
+        <div class="schedule-calendar-control">
+          <button type="button" data-schedule-calendar-nav="-1" data-schedule-calendar-unit="month" aria-label="Previous month">${icon("chevron_left")}</button>
+          <button type="button" class="schedule-calendar-header-selector ${state.scheduleCalendarView === "months" ? "active" : ""}" data-schedule-calendar-view="months"><span>${monthLabel}</span>${icon("arrow_drop_down")}</button>
+          <button type="button" data-schedule-calendar-nav="1" data-schedule-calendar-unit="month" aria-label="Next month">${icon("chevron_right")}</button>
+        </div>
+        <div class="schedule-calendar-control">
+          <button type="button" data-schedule-calendar-nav="-1" data-schedule-calendar-unit="year" aria-label="Previous year">${icon("chevron_left")}</button>
+          <button type="button" class="schedule-calendar-header-selector ${state.scheduleCalendarView === "years" ? "active" : ""}" data-schedule-calendar-view="years"><span>${year}</span>${icon("arrow_drop_down")}</button>
+          <button type="button" data-schedule-calendar-nav="1" data-schedule-calendar-unit="year" aria-label="Next year">${icon("chevron_right")}</button>
+        </div>
+      </div>
+      <div class="schedule-calendar-body">${content}</div>
+      <div class="schedule-calendar-time-row">
+        <label class="schedule-calendar-time-field">
+          <span>Hours</span>
+          <select id="scheduleCalendarHour" aria-label="Hours">
+            ${hours.map((hour) => `<option value="${hour}" ${state.scheduleCalendarDraftHour === hour ? "selected" : ""}>${hour}</option>`).join("")}
+          </select>
+        </label>
+        <span class="schedule-calendar-time-separator">:</span>
+        <label class="schedule-calendar-time-field">
+          <span>Minutes</span>
+          <select id="scheduleCalendarMinute" aria-label="Minutes">
+            ${minutes.map((minute) => `<option value="${minute}" ${state.scheduleCalendarDraftMinute === minute ? "selected" : ""}>${minute}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      ${state.scheduleCalendarField === "rangeEnd" && !scheduleCalendarDraftReady() ? `<p class="schedule-calendar-error">End date and time must be after the start date and time.</p>` : ""}
+      <div class="schedule-calendar-footer">
+        <button type="button" class="button text" data-action="cancel-schedule-calendar">Cancel</button>
+        <button type="button" class="button text schedule-calendar-confirm" data-action="confirm-schedule-calendar" ${scheduleCalendarDraftReady() ? "" : "disabled"}>Confirm</button>
+      </div>
     </div>
   `;
 }
@@ -2152,14 +2393,15 @@ function openActivationTypeDialog(channelId) {
 function scheduleValidationMessage() {
   if (!state.scheduleDraftFrequency) return "";
   if (!state.scheduleDraftTimezone) return "Select a time zone.";
-  if (!scheduleTimeReady(state.scheduleDraftStartTime)) return "Enter a valid start time.";
-  if (draftUsesAudienceRange()) {
-    if (!state.scheduleDraftRangeStart) return "Select a start date.";
-    if (state.scheduleDraftRangeEnd && state.scheduleDraftRangeEnd < state.scheduleDraftRangeStart) return "End date cannot be earlier than start date.";
-    if (state.scheduleDraftRangeEnd && !scheduleTimeReady(state.scheduleDraftEndTime)) return "Enter a valid end time.";
-    return "";
-  }
-  if (!state.scheduleDraftOtherDate) return "Select a date.";
+  if (!state.scheduleDraftRangeStart && draftUsesAudienceRange()) return "Select a start date and time.";
+  if (!state.scheduleDraftOtherDate && !draftUsesAudienceRange()) return "Select a date and time.";
+  if (!scheduleTimeReady(state.scheduleDraftStartTime)) return "Select a valid start time.";
+  if (draftUsesAudienceRange() && state.scheduleDraftRangeEnd && !scheduleEndIsValid(
+    state.scheduleDraftRangeStart,
+    state.scheduleDraftStartTime,
+    state.scheduleDraftRangeEnd,
+    state.scheduleDraftEndTime
+  )) return "End date and time must be after the start date and time.";
   return "";
 }
 
@@ -2237,7 +2479,7 @@ function openScheduleConfigurationModal(options = {}) {
   if (!options.preserveDraft) {
     hydrateScheduleDraft();
     state.scheduleDropdown = "";
-    state.scheduleCalendarField = "";
+    resetScheduleCalendarUi();
   }
   applyScheduleDraftDefaults();
   const showOnceDate = state.scheduleDraftFrequency === "Once";
@@ -2280,22 +2522,14 @@ function openScheduleConfigurationModal(options = {}) {
 
 function renderRecurringScheduleFields() {
   return `
-    <div class="schedule-grid">
-      ${renderScheduleDateField({ field: "rangeStart", label: "Start date & hour" })}
-      <label class="schedule-field">
-        <span>Start hour</span>
-        <input class="input" id="scheduleStartTime" type="text" list="scheduleTimeOptions" inputmode="numeric" pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$" placeholder="09:00" value="${escapeAttr(state.scheduleDraftStartTime)}" />
-      </label>
-      ${renderScheduleDateField({ field: "rangeEnd", label: "End date & hour" })}
-      <label class="schedule-field">
-        <span>End hour</span>
-        <input class="input" id="scheduleEndTime" type="text" list="scheduleTimeOptions" inputmode="numeric" pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$" placeholder="Optional" value="${escapeAttr(state.scheduleDraftEndTime)}" />
-      </label>
+    <div class="schedule-grid date-time-grid">
+      ${renderScheduleDateField({ field: "rangeStart", label: "Start Date" })}
+      ${renderScheduleDateField({ field: "rangeEnd", label: "End Date" })}
       <div class="schedule-field timezone">
         ${renderScheduleDropdown({
           key: "timezone",
           label: "Time zone",
-          placeholder: "Selects",
+          placeholder: "Select time zone",
           value: state.scheduleDraftTimezone,
           options: scheduleTimezoneOptions()
         })}
@@ -2306,17 +2540,13 @@ function renderRecurringScheduleFields() {
 
 function renderOnceScheduleFields() {
   return `
-    <div class="schedule-grid once">
-      ${renderScheduleDateField({ field: "onceDate", label: "Date & hour" })}
-      <label class="schedule-field">
-        <span>Hour</span>
-        <input class="input" id="scheduleStartTime" type="text" list="scheduleTimeOptions" inputmode="numeric" pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$" placeholder="09:00" value="${escapeAttr(state.scheduleDraftStartTime)}" />
-      </label>
+    <div class="schedule-grid once date-time-grid">
+      ${renderScheduleDateField({ field: "onceDate", label: "Run Date" })}
       <div class="schedule-field timezone">
         ${renderScheduleDropdown({
           key: "timezone",
           label: "Time zone",
-          placeholder: "Selects",
+          placeholder: "Select time zone",
           value: state.scheduleDraftTimezone,
           options: scheduleTimezoneOptions()
         })}
@@ -2447,7 +2677,7 @@ document.addEventListener("click", (event) => {
   if (target.dataset.toggleScheduleMenu) {
     const menu = target.dataset.toggleScheduleMenu;
     state.scheduleDropdown = state.scheduleDropdown === menu ? "" : menu;
-    state.scheduleCalendarField = "";
+    resetScheduleCalendarUi();
     rerenderScheduleHost();
   }
   if (target.dataset.scheduleOption) {
@@ -2466,23 +2696,35 @@ document.addEventListener("click", (event) => {
     rerenderScheduleHost();
   }
   if (target.dataset.scheduleCalendar) {
-    openScheduleCalendar(target.dataset.scheduleCalendar);
+    openScheduleCalendar(target.dataset.scheduleCalendar, target);
   }
   if (target.dataset.scheduleCalendarNav) {
     shiftScheduleCalendar(Number(target.dataset.scheduleCalendarNav), target.dataset.scheduleCalendarUnit || "month");
   }
+  if (target.dataset.scheduleCalendarView) {
+    setScheduleCalendarView(target.dataset.scheduleCalendarView);
+  }
+  if (target.dataset.scheduleCalendarMonth !== undefined) {
+    selectScheduleCalendarMonth(target.dataset.scheduleCalendarMonth);
+  }
+  if (target.dataset.scheduleCalendarYear !== undefined) {
+    selectScheduleCalendarYear(target.dataset.scheduleCalendarYear);
+  }
   if (target.dataset.scheduleDate) {
-    setScheduleDateValue(state.scheduleCalendarField, target.dataset.scheduleDate);
-    state.scheduleCalendarField = "";
+    state.scheduleCalendarDraftDate = target.dataset.scheduleDate;
+    state.scheduleCalendarMonth = target.dataset.scheduleDate.slice(0, 7);
+    state.scheduleCalendarView = "days";
     rerenderScheduleHost();
   }
+  if (target.dataset.action === "cancel-schedule-calendar") cancelScheduleCalendar();
+  if (target.dataset.action === "confirm-schedule-calendar") confirmScheduleCalendar();
   if (target.dataset.action === "activate-audience-flow") openActivateAudienceModal();
   if (target.dataset.action === "confirm-activate-audience") saveAudience("activated");
   if (target.dataset.activationChannel) {
     const channel = target.dataset.activationChannel;
     state.activationSetupStep = "activation";
     state.scheduleDropdown = "";
-    state.scheduleCalendarField = "";
+    resetScheduleCalendarUi();
     if (state.audienceBuilderChannels.includes(channel)) hydrateScheduleDraft();
     else resetScheduleDraft();
     openActivationTypeDialog(channel);
@@ -2748,6 +2990,14 @@ document.addEventListener("change", (event) => {
     state.scheduleDraftTimezone = event.target.value;
     rerenderScheduleHost();
   }
+  if (event.target.id === "scheduleCalendarHour") {
+    state.scheduleCalendarDraftHour = event.target.value;
+    rerenderScheduleHost();
+  }
+  if (event.target.id === "scheduleCalendarMinute") {
+    state.scheduleCalendarDraftMinute = event.target.value;
+    rerenderScheduleHost();
+  }
 });
 
 document.addEventListener("input", (event) => {
@@ -2840,8 +3090,6 @@ document.getElementById("themeToggle").addEventListener("click", () => {
 });
 
 render();
-
-
 
 
 
